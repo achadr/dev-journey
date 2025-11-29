@@ -28,7 +28,7 @@ export const loginSchema = z.object({
 // ============================================
 
 export const questIdSchema = z.object({
-  id: z.string().uuid('Invalid quest ID'),
+  id: z.string().min(1, 'Quest ID is required'),
 })
 
 export const questQuerySchema = z.object({
