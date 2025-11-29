@@ -26,7 +26,7 @@
     "next": "^16.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@prisma/client": "^7.0.0",
+    "@prisma/client": "^6.0.0",
     "phaser": "^3.90.0",
     "zod": "^3.24.1",
     "zustand": "^5.0.2",
@@ -60,7 +60,7 @@
     "@testing-library/react": "^16.1.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@playwright/test": "^1.49.1",
-    "prisma": "^7.0.0",
+    "prisma": "^6.0.0",
     "tsx": "^4.19.2"
   },
   "engines": {
