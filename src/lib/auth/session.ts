@@ -29,7 +29,7 @@ export async function getSession(request: NextRequest): Promise<Session | null> 
 
   try {
     const { payload } = await jwtVerify(token, SECRET)
-    return payload as Session
+    return payload as unknown as Session
   } catch {
     return null
   }
