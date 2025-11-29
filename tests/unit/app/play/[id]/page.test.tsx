@@ -40,12 +40,13 @@ const mockQuestWithLayers = {
       timeLimit: 120,
       challenge: {
         id: 'challenge-1',
-        type: 'URL_BUILDER',
-        question: 'Build a URL to fetch users from the API',
+        type: 'SELECT_METHOD',
+        question: 'What HTTP method should you use to fetch users?',
         config: {
-          baseUrl: 'https://api.example.com',
-          expectedPath: '/users',
-          expectedMethod: 'GET',
+          question: 'What HTTP method should you use to fetch users?',
+          options: ['GET', 'POST', 'PUT', 'DELETE'],
+          answer: 'GET',
+          explanation: 'GET is used to retrieve data.',
         },
       },
     },
@@ -56,11 +57,11 @@ const mockQuestWithLayers = {
       timeLimit: 180,
       challenge: {
         id: 'challenge-2',
-        type: 'PACKET_ROUTING',
-        question: 'Route the packet to the correct server',
+        type: 'PLATFORMER',
+        question: 'Navigate through the network',
         config: {
           obstacles: 5,
-          targetServer: 'api.example.com',
+          speed: 1,
         },
       },
     },
@@ -211,7 +212,7 @@ describe('PlayPage', () => {
       render(<PlayPage />)
 
       await waitFor(() => {
-        expect(screen.getByText(/build a url/i)).toBeInTheDocument()
+        expect(screen.getByText(/what http method/i)).toBeInTheDocument()
       })
     })
   })
