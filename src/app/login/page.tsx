@@ -1,18 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Card,
-  CardHeader,
   CardContent,
   CardFooter,
 } from "@/components/ui/card";
 import { Mail, Lock, User, Eye, EyeOff, Rocket } from "lucide-react";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,18 +25,58 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    // Client-side validation
+    if (!email || !password) {
+      setError("Please fill in all fields");
+      return;
+    }
+
+    if (!isLogin && !username) {
+      setError("Please enter a username");
+      return;
+    }
+
     setIsLoading(true);
 
-    // TODO: Implement actual authentication
-    setTimeout(() => {
+    try {
+      const endpoint = isLogin ? "/api/auth/login" : "/api/auth/register";
+      const body = isLogin
+        ? { email, password }
+        : { username, email, password };
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Handle validation errors
+        if (data.error?.details) {
+          const details = data.error.details;
+          const messages = Object.values(details).flat().join(", ");
+          setError(messages || data.error.message || "An error occurred");
+        } else {
+          setError(data.error?.message || "An error occurred");
+        }
+        return;
+      }
+
+      // Success - redirect to menu
+      router.push("/menu");
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
       setIsLoading(false);
-      // Placeholder - will integrate with backend
-    }, 1000);
+    }
   };
 
   const handleDemoLogin = () => {
-    // TODO: Implement demo login
-    console.log("Demo login");
+    // Guest mode - redirect directly to menu
+    router.push("/menu");
   };
 
   return (
