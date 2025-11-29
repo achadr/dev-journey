@@ -1,0 +1,266 @@
+// Prisma Schema for Packet Journey
+// Database Agent - Complete schema definition
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  avatarUrl String?
+  role      UserRole @default(PLAYER)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  progress         Progress[]
+  createdQuests    Quest[]           @relation("QuestAuthor")
+  achievements     UserAchievement[]
+
+  @@index([email])
+  @@index([username])
+}
+
+enum UserRole {
+  PLAYER
+  CREATOR
+  ADMIN
+}
+
+// ============================================
+// QUEST SYSTEM
+// ============================================
+
+model Quest {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  difficulty  Int      @default(1) // 1-5
+  isPublic    Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  playCount   Int      @default(0)
+
+  // Metadata
+  thumbnailUrl String?
+  tags         String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  authorId String
+  author   User   @relation("QuestAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  layers   Layer[]
+  progress Progress[]
+
+  @@index([authorId])
+  @@index([difficulty])
+  @@index([isPublic, isActive])
+}
+
+model Layer {
+  id    String    @id @default(uuid())
+  type  LayerType
+  order Int       // Order within the quest (0-indexed)
+
+  // Layer-specific settings
+  timeLimit Int?  // Optional time limit in seconds
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  questId   String
+  quest     Quest     @relation(fields: [questId], references: [id], onDelete: Cascade)
+  challenge Challenge?
+
+  @@unique([questId, order])
+  @@index([questId])
+}
+
+enum LayerType {
+  BROWSER
+  NETWORK
+  API
+  DATABASE
+}
+
+model Challenge {
+  id     String        @id @default(uuid())
+  type   ChallengeType
+  config Json          // Flexible JSON config for challenge parameters
+
+  // Scoring
+  maxScore    Int @default(100)
+  timeBonus   Int @default(0)  // Extra points for fast completion
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  layerId String @unique
+  layer   Layer  @relation(fields: [layerId], references: [id], onDelete: Cascade)
+}
+
+enum ChallengeType {
+  // Browser layer
+  SELECT_METHOD
+  BUILD_REQUEST
+  ADD_HEADERS
+
+  // Network layer
+  PLATFORMER
+  DODGE_OBSTACLES
+  PACKET_RACE
+
+  // API layer
+  PICK_ENDPOINT
+  MIDDLEWARE_SEQUENCE
+  STATUS_CODE_MATCH
+
+  // Database layer
+  SELECT_QUERY
+  WRITE_QUERY
+  FIX_QUERY
+}
+
+// ============================================
+// PLAYER PROGRESS
+// ============================================
+
+model Progress {
+  id          String  @id @default(uuid())
+  layerIndex  Int     // Which layer the player is on
+  score       Int     @default(0)
+  bestScore   Int     @default(0)
+  completed   Boolean @default(false)
+  attempts    Int     @default(1)
+  timeSpent   Int     @default(0) // Total time in seconds
+  bestTime    Int?    // Best completion time
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questId String
+  quest   Quest  @relation(fields: [questId], references: [id], onDelete: Cascade)
+
+  // Layer-specific progress
+  layerProgress LayerProgress[]
+
+  @@unique([userId, questId])
+  @@index([userId])
+  @@index([questId])
+  @@index([completed])
+}
+
+model LayerProgress {
+  id         String  @id @default(uuid())
+  layerIndex Int
+  score      Int     @default(0)
+  completed  Boolean @default(false)
+  timeSpent  Int     @default(0)
+  attempts   Int     @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  progressId String
+  progress   Progress @relation(fields: [progressId], references: [id], onDelete: Cascade)
+
+  @@unique([progressId, layerIndex])
+  @@index([progressId])
+}
+
+// ============================================
+// ACHIEVEMENTS & GAMIFICATION
+// ============================================
+
+model Achievement {
+  id          String              @id @default(uuid())
+  name        String              @unique
+  description String
+  icon        String
+  category    AchievementCategory
+
+  // Unlock conditions (JSON for flexibility)
+  condition   Json
+
+  // Rewards
+  xpReward    Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  users UserAchievement[]
+}
+
+enum AchievementCategory {
+  PROGRESS      // Complete quests
+  SKILL         // Master challenges
+  SPEED         // Time-based
+  COLLECTION    // Collect all of something
+  SOCIAL        // Community-based
+}
+
+model UserAchievement {
+  id         String   @id @default(uuid())
+  unlockedAt DateTime @default(now())
+
+  // Relations
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+}
+
+// ============================================
+// LEADERBOARD (Materialized for performance)
+// ============================================
+
+model LeaderboardEntry {
+  id              String            @id @default(uuid())
+  userId          String
+  username        String            // Denormalized for performance
+  totalScore      Int
+  questsCompleted Int
+  rank            Int?
+
+  // Time period
+  period      LeaderboardPeriod
+  periodStart DateTime
+  periodEnd   DateTime
+
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, period, periodStart])
+  @@index([period, periodStart, totalScore(sort: Desc)])
+}
+
+enum LeaderboardPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  ALL_TIME
+}
