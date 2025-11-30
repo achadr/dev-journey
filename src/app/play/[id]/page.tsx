@@ -14,7 +14,7 @@ import {
   RefreshCw,
   AlertTriangle,
 } from "lucide-react";
-import { SelectMethod, AddHeaders, PickEndpoint } from "@/components/challenges";
+import { SelectMethod, AddHeaders, PickEndpoint, SelectQuery, MiddlewareSequence } from "@/components/challenges";
 
 interface Challenge {
   id: string;
@@ -212,6 +212,20 @@ export default function PlayPage() {
         return (
           <PickEndpoint
             config={challengeConfig as { question: string; options: string[]; answer: string; explanation?: string }}
+            onAnswer={handleChallengeAnswer}
+          />
+        );
+      case 'SELECT_QUERY':
+        return (
+          <SelectQuery
+            config={challengeConfig as { question: string; options: string[]; answer: string; explanation?: string }}
+            onAnswer={handleChallengeAnswer}
+          />
+        );
+      case 'MIDDLEWARE_SEQUENCE':
+        return (
+          <MiddlewareSequence
+            config={challengeConfig as { steps: string[]; correctOrder: number[] }}
             onAnswer={handleChallengeAnswer}
           />
         );
