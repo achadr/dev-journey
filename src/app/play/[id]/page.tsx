@@ -13,8 +13,8 @@ import {
   AlertCircle,
   RefreshCw,
   AlertTriangle,
-  CheckCircle,
 } from "lucide-react";
+import { SelectMethod, AddHeaders, PickEndpoint, SelectQuery, MiddlewareSequence } from "@/components/challenges";
 
 interface Challenge {
   id: string;
@@ -59,6 +59,7 @@ export default function PlayPage() {
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
+  const [challengeCompleted, setChallengeCompleted] = useState(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -152,16 +153,90 @@ export default function PlayPage() {
     setIsPaused(!isPaused);
   };
 
-  // Handle submit answer
-  const handleSubmit = () => {
-    // TODO: Implement answer validation
-    // For now, just advance to next layer
+  // Handle challenge answer
+  const handleChallengeAnswer = (result: { correct: boolean; answer?: string; headers?: Record<string, string> }) => {
+    setChallengeCompleted(true);
+
+    // Auto-advance after delay if correct
+    if (result.correct) {
+      setTimeout(() => {
+        advanceToNextLayer();
+      }, 2000);
+    }
+  };
+
+  // Advance to next layer
+  const advanceToNextLayer = () => {
     if (quest && currentLayerIndex < quest.layers.length - 1) {
       setCurrentLayerIndex(currentLayerIndex + 1);
+      setChallengeCompleted(false);
       const nextLayer = quest.layers.sort((a, b) => a.order - b.order)[currentLayerIndex + 1];
       if (nextLayer?.timeLimit) {
         setTimeRemaining(nextLayer.timeLimit);
       }
+    } else {
+      // Quest completed - redirect to results
+      router.push(`/quests/${questId}?completed=true`);
+    }
+  };
+
+  // Render challenge based on type
+  const renderChallenge = () => {
+    if (!currentLayer?.challenge) {
+      return (
+        <div className="bg-black/30 rounded-lg p-4 min-h-[200px] flex items-center justify-center">
+          <p className="text-white/50">No challenge configured for this layer</p>
+        </div>
+      );
+    }
+
+    const { type, config } = currentLayer.challenge;
+    const challengeConfig = config as Record<string, unknown>;
+
+    switch (type) {
+      case 'SELECT_METHOD':
+        return (
+          <SelectMethod
+            config={challengeConfig as { question: string; options: string[]; answer: string; explanation?: string }}
+            onAnswer={handleChallengeAnswer}
+          />
+        );
+      case 'ADD_HEADERS':
+        return (
+          <AddHeaders
+            config={challengeConfig as { requiredHeaders: string[]; headerHints?: Record<string, string> }}
+            onAnswer={handleChallengeAnswer}
+          />
+        );
+      case 'PICK_ENDPOINT':
+        return (
+          <PickEndpoint
+            config={challengeConfig as { question: string; options: string[]; answer: string; explanation?: string }}
+            onAnswer={handleChallengeAnswer}
+          />
+        );
+      case 'SELECT_QUERY':
+        return (
+          <SelectQuery
+            config={challengeConfig as { question: string; options: string[]; answer: string; explanation?: string }}
+            onAnswer={handleChallengeAnswer}
+          />
+        );
+      case 'MIDDLEWARE_SEQUENCE':
+        return (
+          <MiddlewareSequence
+            config={challengeConfig as { steps: string[]; correctOrder: number[] }}
+            onAnswer={handleChallengeAnswer}
+          />
+        );
+      default:
+        return (
+          <div className="bg-black/30 rounded-lg p-4 min-h-[200px] flex items-center justify-center">
+            <p className="text-white/50">
+              Challenge type &quot;{type}&quot; not yet implemented
+            </p>
+          </div>
+        );
     }
   };
 
@@ -283,31 +358,27 @@ export default function PlayPage() {
           {/* Challenge Card */}
           <Card className="bg-white/10 border-white/20">
             <CardContent className="p-6">
-              {/* Challenge Question */}
-              {currentLayer.challenge && (
-                <div className="mb-6">
-                  <h2 className="text-xl text-white font-semibold mb-2">Challenge</h2>
-                  <p className="text-white/80">{currentLayer.challenge.question}</p>
+              {/* Challenge Title */}
+              <h2 className="text-xl text-white font-semibold mb-4">Challenge</h2>
+
+              {/* Challenge Component */}
+              {renderChallenge()}
+
+              {/* Continue Button (shown after correct answer) */}
+              {challengeCompleted && (
+                <div className="flex justify-center mt-6">
+                  <Button
+                    onClick={advanceToNextLayer}
+                    className="bg-purple-500 hover:bg-purple-600 gap-2"
+                  >
+                    {currentLayerIndex < (quest?.layers.length || 0) - 1 ? (
+                      <>Continue to Next Layer</>
+                    ) : (
+                      <>Complete Quest</>
+                    )}
+                  </Button>
                 </div>
               )}
-
-              {/* Challenge Input Area (placeholder) */}
-              <div className="bg-black/30 rounded-lg p-4 min-h-[200px] flex items-center justify-center mb-6">
-                <p className="text-white/50">
-                  Challenge interface for {currentLayer.challenge?.type || "Unknown"} will be rendered here
-                </p>
-              </div>
-
-              {/* Submit Button */}
-              <div className="flex justify-end">
-                <Button
-                  onClick={handleSubmit}
-                  className="bg-green-500 hover:bg-green-600 gap-2"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  Submit Answer
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </div>
