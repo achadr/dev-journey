@@ -14,7 +14,21 @@ import {
   RefreshCw,
   AlertTriangle,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { SelectMethod, AddHeaders, PickEndpoint, SelectQuery, MiddlewareSequence } from "@/components/challenges";
+
+// Dynamically import PlatformerChallenge to avoid SSR issues with Phaser
+const PlatformerChallenge = dynamic(
+  () => import("@/components/challenges/PlatformerChallenge").then((mod) => mod.PlatformerChallenge),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="bg-black/30 rounded-lg p-4 min-h-[200px] flex items-center justify-center">
+        <p className="text-white/50">Loading game engine...</p>
+      </div>
+    )
+  }
+);
 
 interface Challenge {
   id: string;
@@ -226,6 +240,13 @@ export default function PlayPage() {
         return (
           <MiddlewareSequence
             config={challengeConfig as { steps: string[]; correctOrder: number[] }}
+            onAnswer={handleChallengeAnswer}
+          />
+        );
+      case 'PLATFORMER':
+        return (
+          <PlatformerChallenge
+            config={challengeConfig as { levelLength?: number; platforms?: Array<{ x: number; y: number; width: number }>; obstacles?: Array<{ x: number; y: number; type: string }> }}
             onAnswer={handleChallengeAnswer}
           />
         );

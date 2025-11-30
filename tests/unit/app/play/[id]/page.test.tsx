@@ -3,6 +3,29 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import PlayPage from '@/app/play/[id]/page'
 
+// Mock Phaser to prevent canvas errors in JSDOM
+vi.mock('phaser', () => ({
+  default: {
+    AUTO: 1,
+    Scale: {
+      FIT: 1,
+      CENTER_BOTH: 2,
+    },
+    Game: vi.fn().mockImplementation(() => ({
+      destroy: vi.fn(),
+      scene: {
+        start: vi.fn(),
+        add: vi.fn(),
+      },
+    })),
+  },
+}))
+
+// Mock NetworkScene
+vi.mock('@/game/scenes/NetworkScene', () => ({
+  NetworkScene: vi.fn(),
+}))
+
 // Mock next/navigation
 const mockPush = vi.fn()
 const mockParams = { id: 'quest-123' }
