@@ -1,46 +1,17 @@
 import Phaser from 'phaser'
 import { BaseScene, SceneData } from './BaseScene'
-import { EventBus, HandshakeToken, PacketPart } from '../EventBus'
-import { GAME_WIDTH, GAME_HEIGHT } from '../config'
+import { EventBus } from '../EventBus'
+import { GAME_HEIGHT } from '../config'
+import {
+  generateLevel,
+  GeneratedLevel,
+  SimpleLevelConfig,
+  CollectibleTheme,
+} from '../utils/levelGenerator'
 
-interface PlatformConfig {
-  x: number
-  y: number
-  width: number
-  height?: number
-}
-
-interface ObstacleConfig {
-  x: number
-  y: number
-  type: string
-}
-
-interface HandshakeTokenConfig {
-  x: number
-  y: number
-  token: HandshakeToken
-}
-
-interface HandshakeGateConfig {
-  x: number
-  y: number
-  requires: HandshakeToken
-}
-
-interface PacketPartConfig {
-  x: number
-  y: number
-  part: PacketPart
-}
-
-interface PlatformerConfig {
-  levelLength?: number
-  platforms?: PlatformConfig[]
-  obstacles?: ObstacleConfig[]
-  handshakeTokens?: HandshakeTokenConfig[]
-  handshakeGates?: HandshakeGateConfig[]
-  packetParts?: PacketPartConfig[]
+// Simple config from database (seed.ts format)
+interface PlatformerConfig extends SimpleLevelConfig {
+  // All fields inherited from SimpleLevelConfig
 }
 
 // Educational explanations for obstacles
@@ -61,33 +32,107 @@ const OBSTACLE_EXPLANATIONS: Record<string, { title: string; message: string }> 
     title: '🐌 High Latency!',
     message: 'Network delay slows down communication. Data takes time to travel between servers.',
   },
+  'latency-cloud': {
+    title: '☁️ Network Congestion!',
+    message: 'Too many requests at once can slow down the network.',
+  },
+  'rate-limit': {
+    title: '🚫 Rate Limited!',
+    message: 'APIs limit how many requests you can make per second to prevent abuse.',
+  },
+  'mitm-attack': {
+    title: '🕵️ Man-in-the-Middle!',
+    message: 'An attacker can intercept unencrypted traffic. Always use HTTPS!',
+  },
+}
+
+// Educational messages for each collectible type
+const COLLECTIBLE_MESSAGES: Record<string, { title: string; message: string }> = {
+  // TCP theme
+  'SYN': {
+    title: '✅ SYN Received!',
+    message: 'Client sends SYN to initiate connection. "Hey server, let\'s connect!"',
+  },
+  'SYN-ACK': {
+    title: '✅ SYN-ACK Received!',
+    message: 'Server acknowledges with SYN-ACK. "Got it! I\'m ready too!"',
+  },
+  'ACK': {
+    title: '✅ ACK Received!',
+    message: 'Client confirms with ACK. Connection established! "Great, let\'s talk!"',
+  },
+  // HTTP theme
+  'REQUEST': {
+    title: '📤 Request Sent!',
+    message: 'HTTP requests contain method, URL, headers, and optional body.',
+  },
+  'RESPONSE': {
+    title: '📥 Response Received!',
+    message: 'Server responds with status code, headers, and response body.',
+  },
+  'DATA': {
+    title: '📦 Data Transferred!',
+    message: 'The actual content (HTML, JSON, images) travels in the response body.',
+  },
+  // Auth theme
+  'CREDENTIALS': {
+    title: '🔑 Credentials Collected!',
+    message: 'Username and password are sent to authenticate the user.',
+  },
+  'TOKEN': {
+    title: '🎫 Token Acquired!',
+    message: 'Auth tokens prove identity without sending passwords repeatedly.',
+  },
+  'SESSION': {
+    title: '💾 Session Created!',
+    message: 'Sessions track authenticated users across multiple requests.',
+  },
+  // API theme
+  'ENDPOINT': {
+    title: '🎯 Endpoint Found!',
+    message: 'API endpoints are URLs that accept specific HTTP methods.',
+  },
+  'METHOD': {
+    title: '📋 Method Selected!',
+    message: 'HTTP methods (GET, POST, PUT, DELETE) define the action type.',
+  },
+  'STATUS': {
+    title: '📊 Status Received!',
+    message: 'Status codes (200, 404, 500) indicate success or failure.',
+  },
+}
+
+// Color schemes for different themes
+const THEME_COLORS: Record<CollectibleTheme, number[]> = {
+  tcp: [0x44aaff, 0xaa44ff, 0x44ffaa],
+  http: [0xff8844, 0x44ff88, 0x4488ff],
+  auth: [0xffaa00, 0x00ffaa, 0xaa00ff],
+  api: [0xff4488, 0x88ff44, 0x4488ff],
+  none: [],
 }
 
 export class NetworkScene extends BaseScene {
   private player!: Phaser.Physics.Arcade.Sprite
   private platforms!: Phaser.Physics.Arcade.StaticGroup
   private obstacles!: Phaser.Physics.Arcade.Group
-  private handshakeTokens!: Phaser.Physics.Arcade.Group
-  private handshakeGates!: Phaser.Physics.Arcade.StaticGroup
-  private packetParts!: Phaser.Physics.Arcade.Group
+  private collectiblesGroup!: Phaser.Physics.Arcade.Group
+  private gatesGroup!: Phaser.Physics.Arcade.StaticGroup
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
   private levelLength: number = 3000
   private score: number = 0
 
-  // Educational state
-  private collectedHandshake: HandshakeToken[] = []
-  private collectedPacketParts: PacketPart[] = []
-  private readonly CORRECT_HANDSHAKE_ORDER: HandshakeToken[] = ['SYN', 'SYN-ACK', 'ACK']
-  private readonly CORRECT_PACKET_ORDER: PacketPart[] = ['header', 'payload', 'checksum']
+  // Generated level data
+  private generatedLevel!: GeneratedLevel
+
+  // Collection state
+  private collectedIds: string[] = []
 
   private readonly PLAYER_SPEED = 350
   private readonly JUMP_VELOCITY = -650
   private readonly GRAVITY = 900
   private readonly OBSTACLE_DAMAGE = 20
-  private readonly TOKEN_SCORE = 150
-  private readonly PACKET_PART_SCORE = 100
-  private readonly HANDSHAKE_BONUS = 500
-  private readonly PACKET_ASSEMBLY_BONUS = 300
+  private readonly COLLECTIBLE_SCORE = 150
+  private readonly COMPLETION_BONUS = 500
 
   constructor() {
     super('NetworkScene')
@@ -96,13 +141,20 @@ export class NetworkScene extends BaseScene {
   init(data: SceneData): void {
     super.init(data)
     this.score = 0
-    this.collectedHandshake = []
-    this.collectedPacketParts = []
+    this.collectedIds = []
 
     const config = this.layerConfig.challenge?.config as PlatformerConfig | undefined
-    if (config?.levelLength) {
-      this.levelLength = config.levelLength
-    }
+
+    // Generate level from config
+    this.generatedLevel = generateLevel({
+      obstacles: config?.obstacles,
+      speed: config?.speed,
+      obstacleTypes: config?.obstacleTypes,
+      levelLength: config?.levelLength,
+      theme: config?.theme,
+    })
+
+    this.levelLength = this.generatedLevel.levelLength
   }
 
   create(): void {
@@ -113,12 +165,24 @@ export class NetworkScene extends BaseScene {
     this.createPlatforms()
     this.createPlayer()
     this.createObstacles()
-    this.createHandshakeTokens()
-    this.createHandshakeGates()
-    this.createPacketParts()
+    this.createCollectibles()
+    this.createGates()
     this.setupCollisions()
     this.setupCamera()
     this.cursors = this.input.keyboard!.createCursorKeys()
+
+    // Emit theme info to HUD after scene is fully created
+    this.time.delayedCall(100, () => {
+      EventBus.emit('theme:init', {
+        theme: this.generatedLevel.theme,
+        themeConfig: this.generatedLevel.themeConfig,
+        collectibles: this.generatedLevel.collectibles.map(c => ({
+          id: c.id,
+          label: c.label,
+          order: c.order,
+        })),
+      })
+    })
   }
 
   update(): void {
@@ -158,40 +222,17 @@ export class NetworkScene extends BaseScene {
   private createPlatforms(): void {
     this.platforms = this.physics.add.staticGroup()
 
-    const config = this.layerConfig.challenge?.config as PlatformerConfig | undefined
-    const platformConfigs = Array.isArray(config?.platforms) ? config.platforms : this.getDefaultPlatforms()
-
-    platformConfigs.forEach((p) => {
+    this.generatedLevel.platforms.forEach((p) => {
       const platform = this.platforms.create(p.x, p.y, undefined) as Phaser.Physics.Arcade.Sprite
       platform.setOrigin(0, 0)
       platform.displayWidth = p.width
       platform.displayHeight = p.height || 32
       platform.refreshBody()
 
+      // Visual rectangle
       const rect = this.add.rectangle(p.x, p.y, p.width, p.height || 32, 0x4a4a6a)
       rect.setOrigin(0, 0)
     })
-  }
-
-  private getDefaultPlatforms(): PlatformConfig[] {
-    return [
-      // Ground sections with gaps - shorter gaps between platforms
-      { x: 0, y: GAME_HEIGHT - 32, width: 700 },
-      { x: 800, y: GAME_HEIGHT - 32, width: 600 },
-      { x: 1500, y: GAME_HEIGHT - 32, width: 600 },
-      { x: 2200, y: GAME_HEIGHT - 32, width: 800 },
-      // Floating platforms - more reachable heights (max 150px between platforms)
-      { x: 200, y: 550, width: 180 },
-      { x: 450, y: 480, width: 180 },
-      { x: 750, y: 550, width: 180 },
-      { x: 1000, y: 480, width: 180 },
-      { x: 1250, y: 550, width: 180 },
-      { x: 1550, y: 480, width: 180 },
-      { x: 1850, y: 550, width: 180 },
-      { x: 2100, y: 480, width: 180 },
-      { x: 2400, y: 550, width: 180 },
-      { x: 2700, y: 480, width: 180 },
-    ]
   }
 
   private createPlayer(): void {
@@ -214,10 +255,7 @@ export class NetworkScene extends BaseScene {
   private createObstacles(): void {
     this.obstacles = this.physics.add.group()
 
-    const config = this.layerConfig.challenge?.config as PlatformerConfig | undefined
-    const obstacleConfigs = Array.isArray(config?.obstacles) ? config.obstacles : this.getDefaultObstacles()
-
-    obstacleConfigs.forEach((o) => {
+    this.generatedLevel.obstacles.forEach((o) => {
       const obstacle = this.obstacles.create(o.x, o.y, undefined) as Phaser.Physics.Arcade.Sprite
       obstacle.setData('type', o.type)
 
@@ -226,7 +264,6 @@ export class NetworkScene extends BaseScene {
       graphics.fillStyle(color, 1)
       graphics.fillRect(o.x - 20, o.y - 20, 40, 40)
 
-      // Add label
       const label = this.add.text(o.x, o.y - 35, this.getObstacleLabel(o.type), {
         fontSize: '12px',
         color: '#ffffff',
@@ -237,22 +274,15 @@ export class NetworkScene extends BaseScene {
     })
   }
 
-  private getDefaultObstacles(): ObstacleConfig[] {
-    return [
-      { x: 450, y: GAME_HEIGHT - 64, type: 'firewall' },
-      { x: 1000, y: 448, type: 'packet_loss' },
-      { x: 1600, y: GAME_HEIGHT - 64, type: 'timeout' },
-      { x: 2200, y: 418, type: 'latency' },
-      { x: 2800, y: GAME_HEIGHT - 64, type: 'firewall' },
-    ]
-  }
-
   private getObstacleColor(type: string): number {
     const colors: Record<string, number> = {
       firewall: 0xff4444,
       packet_loss: 0xff8844,
       timeout: 0xffaa44,
       latency: 0xffff44,
+      'latency-cloud': 0xaaaaff,
+      'rate-limit': 0xff44aa,
+      'mitm-attack': 0xff0000,
     }
     return colors[type] || 0xff0000
   }
@@ -263,74 +293,64 @@ export class NetworkScene extends BaseScene {
       packet_loss: '📦 Loss',
       timeout: '⏱️ Timeout',
       latency: '🐌 Latency',
+      'latency-cloud': '☁️ Congestion',
+      'rate-limit': '🚫 Rate Limit',
+      'mitm-attack': '🕵️ MITM',
     }
     return labels[type] || type
   }
 
-  private createHandshakeTokens(): void {
-    this.handshakeTokens = this.physics.add.group()
+  private createCollectibles(): void {
+    this.collectiblesGroup = this.physics.add.group()
 
-    const config = this.layerConfig.challenge?.config as PlatformerConfig | undefined
-    const tokenConfigs = Array.isArray(config?.handshakeTokens) ? config.handshakeTokens : this.getDefaultHandshakeTokens()
+    const theme = this.generatedLevel.theme
+    const colors = THEME_COLORS[theme]
 
-    tokenConfigs.forEach((t) => {
-      const token = this.handshakeTokens.create(t.x, t.y, undefined) as Phaser.Physics.Arcade.Sprite
-      token.setData('token', t.token)
+    this.generatedLevel.collectibles.forEach((c, index) => {
+      const collectible = this.collectiblesGroup.create(c.x, c.y, undefined) as Phaser.Physics.Arcade.Sprite
+      collectible.setData('id', c.id)
+      collectible.setData('label', c.label)
+      collectible.setData('order', c.order)
 
-      // Visual - colored circle with label
-      const color = this.getHandshakeColor(t.token)
+      // Visual - colored circle with label (same pattern as old handshake tokens)
+      const color = colors[index % colors.length] || 0x44aaff
       const graphics = this.add.graphics()
       graphics.fillStyle(color, 1)
-      graphics.fillCircle(t.x, t.y, 18)
+      graphics.fillCircle(c.x, c.y, 18)
       graphics.lineStyle(3, 0xffffff, 1)
-      graphics.strokeCircle(t.x, t.y, 18)
+      graphics.strokeCircle(c.x, c.y, 18)
 
-      const label = this.add.text(t.x, t.y, t.token, {
-        fontSize: '10px',
+      // Shorter label for display
+      const displayLabel = c.label.length > 8 ? c.label.slice(0, 6) + '..' : c.label
+      const label = this.add.text(c.x, c.y, displayLabel, {
+        fontSize: '9px',
         color: '#000000',
         fontStyle: 'bold',
       })
       label.setOrigin(0.5, 0.5)
+
+      collectible.setData('graphics', graphics)
+      collectible.setData('labelText', label)
     })
   }
 
-  private getDefaultHandshakeTokens(): HandshakeTokenConfig[] {
-    return [
-      { x: 300, y: 480, token: 'SYN' },
-      { x: 1200, y: 340, token: 'SYN-ACK' },
-      { x: 2200, y: 340, token: 'ACK' },
-    ]
-  }
+  private createGates(): void {
+    this.gatesGroup = this.physics.add.staticGroup()
 
-  private getHandshakeColor(token: HandshakeToken): number {
-    const colors: Record<HandshakeToken, number> = {
-      'SYN': 0x44aaff,
-      'SYN-ACK': 0xaa44ff,
-      'ACK': 0x44ffaa,
-    }
-    return colors[token]
-  }
-
-  private createHandshakeGates(): void {
-    this.handshakeGates = this.physics.add.staticGroup()
-
-    const config = this.layerConfig.challenge?.config as PlatformerConfig | undefined
-    const gateConfigs = Array.isArray(config?.handshakeGates) ? config.handshakeGates : this.getDefaultHandshakeGates()
-
-    gateConfigs.forEach((g) => {
-      const gate = this.handshakeGates.create(g.x, g.y, undefined) as Phaser.Physics.Arcade.Sprite
-      gate.setData('requires', g.requires)
+    this.generatedLevel.gates.forEach((g) => {
+      const gate = this.gatesGroup.create(g.x, g.y, undefined) as Phaser.Physics.Arcade.Sprite
+      gate.setData('requiresId', g.requiresId)
       gate.setData('open', false)
       gate.displayWidth = 20
       gate.displayHeight = 150
       gate.refreshBody()
 
-      // Visual - gate barrier
+      // Visual - gate barrier (same pattern as old handshake gates)
       const graphics = this.add.graphics()
       graphics.fillStyle(0x884444, 1)
       graphics.fillRect(g.x - 10, g.y - 75, 20, 150)
 
-      const label = this.add.text(g.x, g.y - 90, `Requires: ${g.requires}`, {
+      const label = this.add.text(g.x, g.y - 90, g.label, {
         fontSize: '12px',
         color: '#ffaaaa',
         backgroundColor: '#00000088',
@@ -341,65 +361,6 @@ export class NetworkScene extends BaseScene {
       gate.setData('graphics', graphics)
       gate.setData('label', label)
     })
-  }
-
-  private getDefaultHandshakeGates(): HandshakeGateConfig[] {
-    return [
-      { x: 650, y: GAME_HEIGHT - 107, requires: 'SYN' },
-      { x: 1650, y: GAME_HEIGHT - 107, requires: 'SYN-ACK' },
-      { x: 2650, y: GAME_HEIGHT - 107, requires: 'ACK' },
-    ]
-  }
-
-  private createPacketParts(): void {
-    this.packetParts = this.physics.add.group()
-
-    const config = this.layerConfig.challenge?.config as PlatformerConfig | undefined
-    const partConfigs = Array.isArray(config?.packetParts) ? config.packetParts : this.getDefaultPacketParts()
-
-    partConfigs.forEach((p) => {
-      const part = this.packetParts.create(p.x, p.y, undefined) as Phaser.Physics.Arcade.Sprite
-      part.setData('part', p.part)
-
-      // Visual - packet piece
-      const color = this.getPacketPartColor(p.part)
-      const graphics = this.add.graphics()
-      graphics.fillStyle(color, 1)
-      graphics.fillRoundedRect(p.x - 15, p.y - 10, 30, 20, 5)
-
-      const label = this.add.text(p.x, p.y, this.getPacketPartLabel(p.part), {
-        fontSize: '9px',
-        color: '#000000',
-        fontStyle: 'bold',
-      })
-      label.setOrigin(0.5, 0.5)
-    })
-  }
-
-  private getDefaultPacketParts(): PacketPartConfig[] {
-    return [
-      { x: 400, y: 380, part: 'header' },
-      { x: 1400, y: 410, part: 'payload' },
-      { x: 2500, y: 340, part: 'checksum' },
-    ]
-  }
-
-  private getPacketPartColor(part: PacketPart): number {
-    const colors: Record<PacketPart, number> = {
-      header: 0x66ff66,
-      payload: 0x6666ff,
-      checksum: 0xff66ff,
-    }
-    return colors[part]
-  }
-
-  private getPacketPartLabel(part: PacketPart): string {
-    const labels: Record<PacketPart, string> = {
-      header: 'HDR',
-      payload: 'DATA',
-      checksum: 'CHK',
-    }
-    return labels[part]
   }
 
   private setupCollisions(): void {
@@ -414,11 +375,11 @@ export class NetworkScene extends BaseScene {
       this
     )
 
-    // Handshake token collection
+    // Collectible collection
     this.physics.add.overlap(
       this.player,
-      this.handshakeTokens,
-      (_, token) => this.collectHandshakeToken(token as Phaser.Physics.Arcade.Sprite),
+      this.collectiblesGroup,
+      (_, collectible) => this.collectItem(collectible as Phaser.Physics.Arcade.Sprite),
       undefined,
       this
     )
@@ -426,18 +387,9 @@ export class NetworkScene extends BaseScene {
     // Gate collision
     this.physics.add.collider(
       this.player,
-      this.handshakeGates,
+      this.gatesGroup,
       (_, gate) => this.hitGate(gate as Phaser.Physics.Arcade.Sprite),
       (_, gate) => !((gate as Phaser.Physics.Arcade.Sprite).getData('open')),
-      this
-    )
-
-    // Packet part collection
-    this.physics.add.overlap(
-      this.player,
-      this.packetParts,
-      (_, part) => this.collectPacketPart(part as Phaser.Physics.Arcade.Sprite),
-      undefined,
       this
     )
   }
@@ -451,10 +403,8 @@ export class NetworkScene extends BaseScene {
     const type = obstacle.getData('type') || 'unknown'
     const explanation = OBSTACLE_EXPLANATIONS[type]
 
-    // Emit damage with explanation
     this.emitDamage(this.OBSTACLE_DAMAGE, type)
 
-    // Show educational message
     if (explanation) {
       EventBus.emit('education:show', {
         title: explanation.title,
@@ -477,134 +427,91 @@ export class NetworkScene extends BaseScene {
     })
   }
 
-  private collectHandshakeToken(tokenSprite: Phaser.Physics.Arcade.Sprite): void {
-    const token = tokenSprite.getData('token') as HandshakeToken
-    tokenSprite.destroy()
+  private collectItem(collectibleSprite: Phaser.Physics.Arcade.Sprite): void {
+    const id = collectibleSprite.getData('id') as string
+    const label = collectibleSprite.getData('label') as string
+    const order = collectibleSprite.getData('order') as number
+
+    // Hide visual elements
+    const graphics = collectibleSprite.getData('graphics') as Phaser.GameObjects.Graphics
+    const labelText = collectibleSprite.getData('labelText') as Phaser.GameObjects.Text
+    if (graphics) graphics.destroy()
+    if (labelText) labelText.destroy()
+    collectibleSprite.destroy()
 
     // Check if collecting in correct order
-    const expectedIndex = this.collectedHandshake.length
-    const expectedToken = this.CORRECT_HANDSHAKE_ORDER[expectedIndex]
+    const expectedOrder = this.collectedIds.length
+    const inOrder = order === expectedOrder
 
-    if (token === expectedToken) {
-      this.collectedHandshake.push(token)
-      this.score += this.TOKEN_SCORE
-      this.emitScore(this.TOKEN_SCORE, `${token} collected`)
+    this.collectedIds.push(id)
+    this.score += this.COLLECTIBLE_SCORE
+    this.emitScore(this.COLLECTIBLE_SCORE, `${label} collected`)
 
-      EventBus.emit('handshake:collected', {
-        token,
-        collected: [...this.collectedHandshake],
-      })
+    // Emit collection event
+    EventBus.emit('collectible:collected', {
+      id,
+      label,
+      order,
+      inOrder,
+      collected: [...this.collectedIds],
+      theme: this.generatedLevel.theme,
+    })
 
-      // Show success message
+    // Show educational message
+    const message = COLLECTIBLE_MESSAGES[id]
+    if (message) {
       EventBus.emit('education:show', {
-        title: `✅ ${token} Received!`,
-        message: this.getHandshakeMessage(token),
-        type: 'success',
+        title: message.title,
+        message: message.message,
+        type: inOrder ? 'success' : 'warning',
       })
+    }
 
-      // Open corresponding gate
-      this.openGate(token)
+    // Open corresponding gate
+    this.openGate(id)
 
-      // Check if handshake complete
-      if (this.collectedHandshake.length === 3) {
-        this.score += this.HANDSHAKE_BONUS
-        this.emitScore(this.HANDSHAKE_BONUS, 'TCP Handshake Complete!')
-        EventBus.emit('handshake:complete')
+    // Check if all collected
+    const totalCollectibles = this.generatedLevel.collectibles.length
+    if (this.collectedIds.length === totalCollectibles && totalCollectibles > 0) {
+      const allInOrder = this.generatedLevel.collectibles.every(
+        (c, i) => this.collectedIds[i] === c.id
+      )
+      if (allInOrder) {
+        this.score += this.COMPLETION_BONUS
+        this.emitScore(this.COMPLETION_BONUS, `${this.generatedLevel.themeConfig.name} Complete!`)
       }
-    } else {
-      // Wrong order - penalty but still collect
-      this.collectedHandshake.push(token)
-      EventBus.emit('handshake:failed', {
-        reason: `Expected ${expectedToken} but got ${token}`,
-      })
-      EventBus.emit('education:show', {
-        title: '❌ Wrong Sequence!',
-        message: `TCP handshake requires: SYN → SYN-ACK → ACK. You collected ${token} out of order.`,
-        type: 'warning',
+      EventBus.emit('collectibles:complete', {
+        theme: this.generatedLevel.theme,
+        bonus: allInOrder,
       })
     }
 
     this.cameras.main.flash(100, 0, 255, 255, false)
   }
 
-  private getHandshakeMessage(token: HandshakeToken): string {
-    const messages: Record<HandshakeToken, string> = {
-      'SYN': 'Client sends SYN to initiate connection. "Hey server, let\'s connect!"',
-      'SYN-ACK': 'Server acknowledges with SYN-ACK. "Got it! I\'m ready too!"',
-      'ACK': 'Client confirms with ACK. Connection established! "Great, let\'s talk!"',
-    }
-    return messages[token]
-  }
-
-  private openGate(token: HandshakeToken): void {
-    this.handshakeGates.getChildren().forEach((child) => {
+  private openGate(collectibleId: string): void {
+    this.gatesGroup.getChildren().forEach((child) => {
       const gate = child as Phaser.Physics.Arcade.Sprite
-      if (gate.getData('requires') === token) {
+      if (gate.getData('requiresId') === collectibleId) {
         gate.setData('open', true)
         const graphics = gate.getData('graphics') as Phaser.GameObjects.Graphics
         const label = gate.getData('label') as Phaser.GameObjects.Text
         if (graphics) graphics.setVisible(false)
-        if (label) label.setText(`✅ ${token}`)
+        if (label) label.setText(`✅ Unlocked`)
       }
     })
   }
 
   private hitGate(gate: Phaser.Physics.Arcade.Sprite): void {
-    const requires = gate.getData('requires') as HandshakeToken
+    const requiresId = gate.getData('requiresId') as string
+    const collectible = this.generatedLevel.collectibles.find(c => c.id === requiresId)
+    const label = collectible?.label || requiresId
+
     EventBus.emit('education:show', {
       title: '🚧 Gate Locked!',
-      message: `This gate requires the ${requires} token. Find and collect it first!`,
+      message: `This gate requires "${label}". Find and collect it first!`,
       type: 'info',
     })
-  }
-
-  private collectPacketPart(partSprite: Phaser.Physics.Arcade.Sprite): void {
-    const part = partSprite.getData('part') as PacketPart
-    partSprite.destroy()
-
-    const expectedIndex = this.collectedPacketParts.length
-    const expectedPart = this.CORRECT_PACKET_ORDER[expectedIndex]
-    const inOrder = part === expectedPart
-
-    this.collectedPacketParts.push(part)
-    this.score += this.PACKET_PART_SCORE
-    this.emitScore(this.PACKET_PART_SCORE, `${part} collected`)
-
-    EventBus.emit('packet:part', {
-      part,
-      collected: [...this.collectedPacketParts],
-      inOrder,
-    })
-
-    // Show educational message
-    EventBus.emit('education:show', {
-      title: `📦 ${part.toUpperCase()} Collected!`,
-      message: this.getPacketPartMessage(part),
-      type: 'success',
-    })
-
-    // Check if packet complete
-    if (this.collectedPacketParts.length === 3) {
-      const allInOrder = this.collectedPacketParts.every(
-        (p, i) => p === this.CORRECT_PACKET_ORDER[i]
-      )
-      if (allInOrder) {
-        this.score += this.PACKET_ASSEMBLY_BONUS
-        this.emitScore(this.PACKET_ASSEMBLY_BONUS, 'Packet assembled correctly!')
-      }
-      EventBus.emit('packet:assembled', { bonus: allInOrder })
-    }
-
-    this.cameras.main.flash(100, 0, 255, 0, false)
-  }
-
-  private getPacketPartMessage(part: PacketPart): string {
-    const messages: Record<PacketPart, string> = {
-      header: 'Headers contain routing info: source IP, destination IP, protocol type.',
-      payload: 'Payload is the actual data being transmitted - your message content!',
-      checksum: 'Checksum verifies data integrity. It detects if data was corrupted.',
-    }
-    return messages[part]
   }
 
   private checkLevelCompletion(): void {

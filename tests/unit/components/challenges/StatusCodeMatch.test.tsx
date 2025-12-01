@@ -43,11 +43,11 @@ describe('StatusCodeMatch', () => {
     it('displays status code descriptions', () => {
       render(<StatusCodeMatch config={defaultConfig} onAnswer={mockOnAnswer} />)
 
-      // Should show descriptions for each code
-      expect(screen.getByText(/OK|Success/i)).toBeInTheDocument()
-      expect(screen.getByText(/Created/i)).toBeInTheDocument()
-      expect(screen.getByText(/Not Found/i)).toBeInTheDocument()
-      expect(screen.getByText(/Internal Server Error/i)).toBeInTheDocument()
+      // Check each status code button has an aria-label with its description
+      expect(screen.getByRole('button', { name: /200 OK/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /201 Created/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /404 Not Found/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /500 Internal Server Error/i })).toBeInTheDocument()
     })
 
     it('renders status codes with appropriate color coding', () => {

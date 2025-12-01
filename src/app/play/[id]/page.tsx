@@ -246,7 +246,7 @@ export default function PlayPage() {
       case 'PLATFORMER':
         return (
           <PlatformerChallenge
-            config={challengeConfig as { levelLength?: number; platforms?: Array<{ x: number; y: number; width: number }>; obstacles?: Array<{ x: number; y: number; type: string }> }}
+            config={challengeConfig as { levelLength?: number; obstacles?: number; speed?: number; obstacleTypes?: string[]; theme?: string }}
             onAnswer={handleChallengeAnswer}
           />
         );
