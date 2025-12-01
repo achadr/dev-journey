@@ -15,7 +15,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import dynamic from "next/dynamic";
-import { SelectMethod, AddHeaders, PickEndpoint, SelectQuery, MiddlewareSequence } from "@/components/challenges";
+import { SelectMethod, AddHeaders, PickEndpoint, SelectQuery, MiddlewareSequence, StatusCodeMatch } from "@/components/challenges";
 
 // Dynamically import PlatformerChallenge to avoid SSR issues with Phaser
 const PlatformerChallenge = dynamic(
@@ -168,7 +168,7 @@ export default function PlayPage() {
   };
 
   // Handle challenge answer
-  const handleChallengeAnswer = (result: { correct: boolean; answer?: string; headers?: Record<string, string> }) => {
+  const handleChallengeAnswer = (result: { correct: boolean; answer?: string | number; headers?: Record<string, string> }) => {
     setChallengeCompleted(true);
 
     // Auto-advance after delay if correct
@@ -206,11 +206,14 @@ export default function PlayPage() {
 
     const { type, config } = currentLayer.challenge;
     const challengeConfig = config as Record<string, unknown>;
+    // Use layer id + index as key to force component remount when layer changes
+    const challengeKey = `${currentLayer.id}-${currentLayerIndex}`;
 
     switch (type) {
       case 'SELECT_METHOD':
         return (
           <SelectMethod
+            key={challengeKey}
             config={challengeConfig as { question: string; options: string[]; answer: string; explanation?: string }}
             onAnswer={handleChallengeAnswer}
           />
@@ -218,6 +221,7 @@ export default function PlayPage() {
       case 'ADD_HEADERS':
         return (
           <AddHeaders
+            key={challengeKey}
             config={challengeConfig as { requiredHeaders: string[]; headerHints?: Record<string, string> }}
             onAnswer={handleChallengeAnswer}
           />
@@ -225,6 +229,7 @@ export default function PlayPage() {
       case 'PICK_ENDPOINT':
         return (
           <PickEndpoint
+            key={challengeKey}
             config={challengeConfig as { question: string; options: string[]; answer: string; explanation?: string }}
             onAnswer={handleChallengeAnswer}
           />
@@ -232,6 +237,7 @@ export default function PlayPage() {
       case 'SELECT_QUERY':
         return (
           <SelectQuery
+            key={challengeKey}
             config={challengeConfig as { question: string; options: string[]; answer: string; explanation?: string }}
             onAnswer={handleChallengeAnswer}
           />
@@ -239,6 +245,7 @@ export default function PlayPage() {
       case 'MIDDLEWARE_SEQUENCE':
         return (
           <MiddlewareSequence
+            key={challengeKey}
             config={challengeConfig as { steps: string[]; correctOrder: number[] }}
             onAnswer={handleChallengeAnswer}
           />
@@ -246,7 +253,16 @@ export default function PlayPage() {
       case 'PLATFORMER':
         return (
           <PlatformerChallenge
+            key={challengeKey}
             config={challengeConfig as { levelLength?: number; obstacles?: number; speed?: number; obstacleTypes?: string[]; theme?: string }}
+            onAnswer={handleChallengeAnswer}
+          />
+        );
+      case 'STATUS_CODE_MATCH':
+        return (
+          <StatusCodeMatch
+            key={challengeKey}
+            config={challengeConfig as { scenario: string; statusCodes: number[]; correctCode: number; explanation?: string }}
             onAnswer={handleChallengeAnswer}
           />
         );

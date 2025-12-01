@@ -25,7 +25,7 @@ interface PlatformerChallengeProps {
 interface EducationPopup {
   title: string
   message: string
-  type: 'info' | 'warning' | 'success'
+  type: 'info' | 'warning' | 'success' | 'error'
 }
 
 interface ThemeInfo {
@@ -137,24 +137,30 @@ export function PlatformerChallenge({ config, onAnswer }: PlatformerChallengePro
 
   // Initialize Phaser game (dynamic import to avoid SSR issues)
   useEffect(() => {
-    if (!gameContainerRef.current || gameRef.current) return
+    if (!gameContainerRef.current) return
+
+    // Prevent double initialization in React Strict Mode
+    let isInitialized = false
 
     const initGame = async () => {
+      // Check again after async import
+      if (isInitialized || gameRef.current) return
+
       const Phaser = (await import('phaser')).default
       const { createGameConfig } = await import('@/game/config')
       const { NetworkScene } = await import('@/game/scenes/NetworkScene')
 
-      if (!gameContainerRef.current) return
+      // Check again after async operations
+      if (isInitialized || gameRef.current || !gameContainerRef.current) return
+
+      isInitialized = true
 
       const gameConfig = createGameConfig(gameContainerRef.current)
 
-      // Add NetworkScene
+      // Add NetworkScene to config - Phaser will auto-start first scene
       gameConfig.scene = [NetworkScene]
 
-      gameRef.current = new Phaser.Game(gameConfig)
-
-      // Start scene with config
-      gameRef.current.scene.start('NetworkScene', {
+      const sceneData = {
         quest: {
           id: 'platformer-challenge',
           name: 'Network Challenge',
@@ -170,12 +176,22 @@ export function PlatformerChallenge({ config, onAnswer }: PlatformerChallengePro
           ],
         },
         layerIndex: 0,
+      }
+
+      gameRef.current = new Phaser.Game(gameConfig)
+
+      // Wait for game to be ready, then restart scene with data
+      gameRef.current.events.once('ready', () => {
+        if (gameRef.current?.scene.getScene('NetworkScene')) {
+          gameRef.current.scene.start('NetworkScene', sceneData)
+        }
       })
     }
 
     initGame()
 
     return () => {
+      isInitialized = true // Prevent initialization if cleanup happens during async
       if (gameRef.current) {
         gameRef.current.destroy(true)
         gameRef.current = null

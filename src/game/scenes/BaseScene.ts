@@ -29,7 +29,11 @@ export abstract class BaseScene extends Phaser.Scene {
   protected layerConfig!: LayerConfig
   protected playerHealth: number = 100
 
-  init(data: SceneData): void {
+  init(data?: SceneData): void {
+    // Handle case when scene is auto-started without data (will be restarted with data)
+    if (!data?.quest) {
+      return
+    }
     this.quest = data.quest
     this.layerConfig = data.quest.layers[data.layerIndex]
   }
