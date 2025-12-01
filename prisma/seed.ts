@@ -344,8 +344,27 @@ async function main() {
             },
           },
           {
-            type: LayerType.API,
+            type: LayerType.NETWORK,
             order: 1,
+            timeLimit: 50,
+            challenge: {
+              create: {
+                type: ChallengeType.PLATFORMER,
+                config: {
+                  obstacles: 10,
+                  speed: 1.3,
+                  obstacleTypes: ['firewall', 'latency-cloud', 'rate-limit'],
+                  levelLength: 4500,
+                  theme: 'api', // API theme: endpoint -> method -> status
+                },
+                maxScore: 250,
+                timeBonus: 60,
+              },
+            },
+          },
+          {
+            type: LayerType.API,
+            order: 2,
             challenge: {
               create: {
                 type: ChallengeType.STATUS_CODE_MATCH,
@@ -361,7 +380,7 @@ async function main() {
           },
           {
             type: LayerType.API,
-            order: 2,
+            order: 3,
             challenge: {
               create: {
                 type: ChallengeType.STATUS_CODE_MATCH,
@@ -377,7 +396,7 @@ async function main() {
           },
           {
             type: LayerType.API,
-            order: 3,
+            order: 4,
             challenge: {
               create: {
                 type: ChallengeType.STATUS_CODE_MATCH,
@@ -393,7 +412,7 @@ async function main() {
           },
           {
             type: LayerType.DATABASE,
-            order: 4,
+            order: 5,
             challenge: {
               create: {
                 type: ChallengeType.SELECT_QUERY,

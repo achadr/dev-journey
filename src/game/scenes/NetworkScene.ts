@@ -138,12 +138,18 @@ export class NetworkScene extends BaseScene {
     super('NetworkScene')
   }
 
-  init(data: SceneData): void {
+  init(data?: SceneData): void {
     super.init(data)
+
+    // If no data, scene will be restarted with proper data
+    if (!data?.quest) {
+      return
+    }
+
     this.score = 0
     this.collectedIds = []
 
-    const config = this.layerConfig.challenge?.config as PlatformerConfig | undefined
+    const config = this.layerConfig?.challenge?.config as PlatformerConfig | undefined
 
     // Generate level from config
     this.generatedLevel = generateLevel({
@@ -158,6 +164,12 @@ export class NetworkScene extends BaseScene {
   }
 
   create(): void {
+    // If no level was generated (no data in init), skip creation
+    // Scene will be restarted with proper data
+    if (!this.generatedLevel) {
+      return
+    }
+
     super.create()
 
     this.physics.world.setBounds(0, 0, this.levelLength, GAME_HEIGHT)

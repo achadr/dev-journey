@@ -57,8 +57,20 @@ interface GameEvents {
   'statuscode:learned': (data: { code: number; name: string }) => void
   'crud:complete': (data: Record<string, never>) => void
 
+  // Browser Layer events (educational)
+  'method:selected': (data: { method: string }) => void
+  'url:set': (data: { url: string }) => void
+  'header:added': (data: { header: string; value: string }) => void
+  'header:removed': (data: { header: string }) => void
+  'body:set': (data: { body: Record<string, unknown> }) => void
+  'body:cleared': (data: Record<string, never>) => void
+  'request:built': (data: { method: string; url: string; headers: Array<{ name: string; value: string }>; body: Record<string, unknown> | null }) => void
+  'request:invalid': (data: { reason: string }) => void
+  'request:reset': (data: Record<string, never>) => void
+  'hint:shown': (data: { hint: string }) => void
+
   // Educational popup events
-  'education:show': (data: { title: string; message: string; type: 'info' | 'warning' | 'success' }) => void
+  'education:show': (data: { title: string; message: string; type: 'info' | 'warning' | 'success' | 'error' }) => void
   'education:hide': () => void
 
   // Theme-based collectible events
