@@ -35,12 +35,8 @@ vi.mock('@/game/scenes/NetworkScene', () => ({
 describe('PlatformerChallenge', () => {
   const defaultConfig = {
     levelLength: 3000,
-    platforms: [
-      { x: 0, y: 600, width: 500 },
-    ],
-    obstacles: [
-      { x: 400, y: 550, type: 'firewall' },
-    ],
+    obstacles: 5,
+    theme: 'tcp',
   }
 
   const mockOnAnswer = vi.fn()
@@ -74,24 +70,6 @@ describe('PlatformerChallenge', () => {
       render(<PlatformerChallenge config={defaultConfig} onAnswer={mockOnAnswer} />)
 
       expect(screen.getByText(/arrow keys/i)).toBeInTheDocument()
-    })
-
-    it('renders TCP handshake progress indicator', () => {
-      render(<PlatformerChallenge config={defaultConfig} onAnswer={mockOnAnswer} />)
-
-      expect(screen.getByTestId('handshake-progress')).toBeInTheDocument()
-      expect(screen.getByText('SYN')).toBeInTheDocument()
-      expect(screen.getByText('SYN-ACK')).toBeInTheDocument()
-      expect(screen.getByText('ACK')).toBeInTheDocument()
-    })
-
-    it('renders packet assembly progress indicator', () => {
-      render(<PlatformerChallenge config={defaultConfig} onAnswer={mockOnAnswer} />)
-
-      expect(screen.getByTestId('packet-progress')).toBeInTheDocument()
-      expect(screen.getByText('Header')).toBeInTheDocument()
-      expect(screen.getByText('Payload')).toBeInTheDocument()
-      expect(screen.getByText('Checksum')).toBeInTheDocument()
     })
   })
 
@@ -130,24 +108,100 @@ describe('PlatformerChallenge', () => {
     })
   })
 
-  describe('TCP handshake mechanics', () => {
-    it('updates handshake progress when token collected', async () => {
+  describe('theme-based collectible mechanics', () => {
+    it('shows collectible progress when theme:init event received', async () => {
       render(<PlatformerChallenge config={defaultConfig} onAnswer={mockOnAnswer} />)
 
-      EventBus.emit('handshake:collected', { token: 'SYN', collected: ['SYN'] })
+      EventBus.emit('theme:init', {
+        theme: 'tcp',
+        themeConfig: {
+          name: 'TCP Handshake',
+          description: 'Learn the TCP three-way handshake',
+          collectibles: [
+            { id: 'SYN', label: 'SYN' },
+            { id: 'SYN-ACK', label: 'SYN-ACK' },
+            { id: 'ACK', label: 'ACK' },
+          ],
+        },
+        collectibles: [
+          { id: 'SYN', label: 'SYN', order: 0 },
+          { id: 'SYN-ACK', label: 'SYN-ACK', order: 1 },
+          { id: 'ACK', label: 'ACK', order: 2 },
+        ],
+      })
 
       await waitFor(() => {
-        const synToken = screen.getByText('SYN')
-        expect(synToken).toHaveClass('bg-green-500')
+        expect(screen.getByTestId('collectible-progress')).toBeInTheDocument()
+        expect(screen.getByText('SYN')).toBeInTheDocument()
+        expect(screen.getByText('SYN-ACK')).toBeInTheDocument()
+        expect(screen.getByText('ACK')).toBeInTheDocument()
       })
     })
 
-    it('shows all tokens collected correctly', async () => {
+    it('updates collectible progress when collectible:collected event received', async () => {
       render(<PlatformerChallenge config={defaultConfig} onAnswer={mockOnAnswer} />)
 
-      EventBus.emit('handshake:collected', { token: 'SYN', collected: ['SYN'] })
-      EventBus.emit('handshake:collected', { token: 'SYN-ACK', collected: ['SYN', 'SYN-ACK'] })
-      EventBus.emit('handshake:collected', { token: 'ACK', collected: ['SYN', 'SYN-ACK', 'ACK'] })
+      // Initialize theme
+      EventBus.emit('theme:init', {
+        theme: 'tcp',
+        themeConfig: {
+          name: 'TCP Handshake',
+          description: 'Learn the TCP three-way handshake',
+          collectibles: [
+            { id: 'SYN', label: 'SYN' },
+            { id: 'SYN-ACK', label: 'SYN-ACK' },
+            { id: 'ACK', label: 'ACK' },
+          ],
+        },
+        collectibles: [
+          { id: 'SYN', label: 'SYN', order: 0 },
+          { id: 'SYN-ACK', label: 'SYN-ACK', order: 1 },
+          { id: 'ACK', label: 'ACK', order: 2 },
+        ],
+      })
+
+      // Collect first item
+      EventBus.emit('collectible:collected', {
+        id: 'SYN',
+        label: 'SYN',
+        order: 0,
+        inOrder: true,
+        collected: ['SYN'],
+        theme: 'tcp',
+      })
+
+      await waitFor(() => {
+        const synElement = screen.getByText('SYN')
+        expect(synElement).toHaveClass('bg-green-500')
+      })
+    })
+
+    it('shows all collectibles collected correctly', async () => {
+      render(<PlatformerChallenge config={defaultConfig} onAnswer={mockOnAnswer} />)
+
+      // Initialize theme
+      EventBus.emit('theme:init', {
+        theme: 'tcp',
+        themeConfig: {
+          name: 'TCP Handshake',
+          description: 'Learn the TCP three-way handshake',
+          collectibles: [
+            { id: 'SYN', label: 'SYN' },
+            { id: 'SYN-ACK', label: 'SYN-ACK' },
+            { id: 'ACK', label: 'ACK' },
+          ],
+        },
+        collectibles: [
+          { id: 'SYN', label: 'SYN', order: 0 },
+          { id: 'SYN-ACK', label: 'SYN-ACK', order: 1 },
+          { id: 'ACK', label: 'ACK', order: 2 },
+        ],
+      })
+
+      // Collect all items
+      EventBus.emit('collectible:collected', { id: 'SYN', label: 'SYN', order: 0, inOrder: true, collected: ['SYN'], theme: 'tcp' })
+      EventBus.emit('collectible:collected', { id: 'SYN-ACK', label: 'SYN-ACK', order: 1, inOrder: true, collected: ['SYN', 'SYN-ACK'], theme: 'tcp' })
+      EventBus.emit('collectible:collected', { id: 'ACK', label: 'ACK', order: 2, inOrder: true, collected: ['SYN', 'SYN-ACK', 'ACK'], theme: 'tcp' })
 
       await waitFor(() => {
         expect(screen.getByText('SYN')).toHaveClass('bg-green-500')
@@ -156,52 +210,100 @@ describe('PlatformerChallenge', () => {
       })
     })
 
-    it('shows checkmark when handshake complete', async () => {
+    it('shows sparkles when collectibles complete event received', async () => {
       render(<PlatformerChallenge config={defaultConfig} onAnswer={mockOnAnswer} />)
 
-      EventBus.emit('handshake:complete')
-
-      await waitFor(() => {
-        const handshakeProgress = screen.getByTestId('handshake-progress')
-        expect(handshakeProgress.querySelector('svg')).toBeInTheDocument()
+      // Initialize theme
+      EventBus.emit('theme:init', {
+        theme: 'tcp',
+        themeConfig: {
+          name: 'TCP Handshake',
+          description: 'Learn the TCP three-way handshake',
+          collectibles: [
+            { id: 'SYN', label: 'SYN' },
+            { id: 'SYN-ACK', label: 'SYN-ACK' },
+            { id: 'ACK', label: 'ACK' },
+          ],
+        },
+        collectibles: [
+          { id: 'SYN', label: 'SYN', order: 0 },
+          { id: 'SYN-ACK', label: 'SYN-ACK', order: 1 },
+          { id: 'ACK', label: 'ACK', order: 2 },
+        ],
       })
-    })
-  })
 
-  describe('packet assembly mechanics', () => {
-    it('updates packet progress when part collected', async () => {
-      render(<PlatformerChallenge config={defaultConfig} onAnswer={mockOnAnswer} />)
-
-      EventBus.emit('packet:part', { part: 'header', collected: ['header'], inOrder: true })
+      EventBus.emit('collectibles:complete', { theme: 'tcp', bonus: true })
 
       await waitFor(() => {
-        const headerPart = screen.getByText('Header')
-        expect(headerPart).toHaveClass('bg-purple-500')
-      })
-    })
-
-    it('shows all parts collected correctly', async () => {
-      render(<PlatformerChallenge config={defaultConfig} onAnswer={mockOnAnswer} />)
-
-      EventBus.emit('packet:part', { part: 'header', collected: ['header'], inOrder: true })
-      EventBus.emit('packet:part', { part: 'payload', collected: ['header', 'payload'], inOrder: true })
-      EventBus.emit('packet:part', { part: 'checksum', collected: ['header', 'payload', 'checksum'], inOrder: true })
-
-      await waitFor(() => {
-        expect(screen.getByText('Header')).toHaveClass('bg-purple-500')
-        expect(screen.getByText('Payload')).toHaveClass('bg-purple-500')
-        expect(screen.getByText('Checksum')).toHaveClass('bg-purple-500')
+        const progressElement = screen.getByTestId('collectible-progress')
+        // Sparkles icon should be present
+        expect(progressElement.querySelector('svg')).toBeInTheDocument()
       })
     })
 
-    it('shows sparkles when packet assembled', async () => {
-      render(<PlatformerChallenge config={defaultConfig} onAnswer={mockOnAnswer} />)
+    it('works with different themes (http)', async () => {
+      render(<PlatformerChallenge config={{ ...defaultConfig, theme: 'http' }} onAnswer={mockOnAnswer} />)
 
-      EventBus.emit('packet:assembled', { bonus: true })
+      EventBus.emit('theme:init', {
+        theme: 'http',
+        themeConfig: {
+          name: 'HTTP Request',
+          description: 'Understand HTTP request/response flow',
+          collectibles: [
+            { id: 'REQUEST', label: 'Request' },
+            { id: 'RESPONSE', label: 'Response' },
+            { id: 'DATA', label: 'Data' },
+          ],
+        },
+        collectibles: [
+          { id: 'REQUEST', label: 'Request', order: 0 },
+          { id: 'RESPONSE', label: 'Response', order: 1 },
+          { id: 'DATA', label: 'Data', order: 2 },
+        ],
+      })
 
       await waitFor(() => {
-        const packetProgress = screen.getByTestId('packet-progress')
-        expect(packetProgress.querySelector('svg')).toBeInTheDocument()
+        expect(screen.getByText('Request')).toBeInTheDocument()
+        expect(screen.getByText('Response')).toBeInTheDocument()
+        expect(screen.getByText('Data')).toBeInTheDocument()
+      })
+    })
+
+    it('works with auth theme', async () => {
+      render(<PlatformerChallenge config={{ ...defaultConfig, theme: 'auth' }} onAnswer={mockOnAnswer} />)
+
+      EventBus.emit('theme:init', {
+        theme: 'auth',
+        themeConfig: {
+          name: 'Authentication',
+          description: 'Learn authentication concepts',
+          collectibles: [
+            { id: 'CREDENTIALS', label: 'Credentials' },
+            { id: 'TOKEN', label: 'Token' },
+            { id: 'SESSION', label: 'Session' },
+          ],
+        },
+        collectibles: [
+          { id: 'CREDENTIALS', label: 'Credentials', order: 0 },
+          { id: 'TOKEN', label: 'Token', order: 1 },
+          { id: 'SESSION', label: 'Session', order: 2 },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(screen.getByText('Credentials')).toBeInTheDocument()
+        expect(screen.getByText('Token')).toBeInTheDocument()
+        expect(screen.getByText('Session')).toBeInTheDocument()
+      })
+    })
+
+    it('does not show collectible progress for none theme', async () => {
+      render(<PlatformerChallenge config={{ ...defaultConfig, theme: 'none' }} onAnswer={mockOnAnswer} />)
+
+      // No theme:init event means no collectibles are shown
+      // The collectible progress element should not be present
+      await waitFor(() => {
+        expect(screen.queryByTestId('collectible-progress')).not.toBeInTheDocument()
       })
     })
   })
@@ -290,25 +392,33 @@ describe('PlatformerChallenge', () => {
       })
     })
 
-    it('shows handshake status in completion summary', async () => {
+    it('shows collectible status in completion summary when theme is active', async () => {
       render(<PlatformerChallenge config={defaultConfig} onAnswer={mockOnAnswer} />)
 
-      EventBus.emit('handshake:complete')
+      // Initialize theme
+      EventBus.emit('theme:init', {
+        theme: 'tcp',
+        themeConfig: {
+          name: 'TCP Handshake',
+          description: 'Learn the TCP three-way handshake',
+          collectibles: [
+            { id: 'SYN', label: 'SYN' },
+            { id: 'SYN-ACK', label: 'SYN-ACK' },
+            { id: 'ACK', label: 'ACK' },
+          ],
+        },
+        collectibles: [
+          { id: 'SYN', label: 'SYN', order: 0 },
+          { id: 'SYN-ACK', label: 'SYN-ACK', order: 1 },
+          { id: 'ACK', label: 'ACK', order: 2 },
+        ],
+      })
+
+      EventBus.emit('collectibles:complete', { theme: 'tcp', bonus: true })
       EventBus.emit('layer:completed', { layer: 'NETWORK', score: 500 })
 
       await waitFor(() => {
         expect(screen.getByText(/TCP Handshake: Complete/i)).toBeInTheDocument()
-      })
-    })
-
-    it('shows packet assembly status in completion summary', async () => {
-      render(<PlatformerChallenge config={defaultConfig} onAnswer={mockOnAnswer} />)
-
-      EventBus.emit('packet:assembled', { bonus: true })
-      EventBus.emit('layer:completed', { layer: 'NETWORK', score: 500 })
-
-      await waitFor(() => {
-        expect(screen.getByText(/Packets Assembled: Yes/i)).toBeInTheDocument()
       })
     })
   })

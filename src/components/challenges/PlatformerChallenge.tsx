@@ -1,32 +1,20 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { EventBus, HandshakeToken, PacketPart } from '@/game/EventBus'
-import { CheckCircle, XCircle, Gamepad2, Network, Package, Info, AlertTriangle, Sparkles } from 'lucide-react'
+import { EventBus } from '@/game/EventBus'
+import { CheckCircle, XCircle, Gamepad2, Target, Info, AlertTriangle, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // Game dimensions (must match config)
 const GAME_WIDTH = 1280
 const GAME_HEIGHT = 720
 
-interface PlatformConfig {
-  x: number
-  y: number
-  width: number
-  height?: number
-}
-
-interface ObstacleConfig {
-  x: number
-  y: number
-  type: string
-}
-
 interface PlatformerConfig {
   levelLength?: number
-  platforms?: PlatformConfig[]
-  obstacles?: ObstacleConfig[]
-  collectibles?: Array<{ x: number; y: number; type: string }>
+  obstacles?: number
+  speed?: number
+  obstacleTypes?: string[]
+  theme?: string
 }
 
 interface PlatformerChallengeProps {
@@ -40,6 +28,16 @@ interface EducationPopup {
   type: 'info' | 'warning' | 'success'
 }
 
+interface ThemeInfo {
+  theme: string
+  themeConfig: {
+    name: string
+    description: string
+    collectibles: Array<{ id: string; label: string }>
+  }
+  collectibles: Array<{ id: string; label: string; order: number }>
+}
+
 export function PlatformerChallenge({ config, onAnswer }: PlatformerChallengeProps) {
   const gameContainerRef = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,15 +48,14 @@ export function PlatformerChallenge({ config, onAnswer }: PlatformerChallengePro
   const [isPaused, setIsPaused] = useState(false)
   const [gameState, setGameState] = useState<'playing' | 'completed' | 'gameover'>('playing')
 
-  // Educational state
-  const [collectedHandshake, setCollectedHandshake] = useState<HandshakeToken[]>([])
-  const [collectedPacketParts, setCollectedPacketParts] = useState<PacketPart[]>([])
+  // Theme-based state
+  const [themeInfo, setThemeInfo] = useState<ThemeInfo | null>(null)
+  const [collectedIds, setCollectedIds] = useState<string[]>([])
+  const [allCollected, setAllCollected] = useState(false)
   const [educationPopup, setEducationPopup] = useState<EducationPopup | null>(null)
-  const [handshakeComplete, setHandshakeComplete] = useState(false)
-  const [packetAssembled, setPacketAssembled] = useState(false)
 
   // Handle game events
-  const handleDamage = useCallback((data: { amount: number; source: string; explanation?: string }) => {
+  const handleDamage = useCallback((data: { amount: number; source: string }) => {
     setHealth((prev) => Math.max(0, prev - data.amount))
   }, [])
 
@@ -85,26 +82,23 @@ export function PlatformerChallenge({ config, onAnswer }: PlatformerChallengePro
     EventBus.emit('game:resume')
   }, [])
 
-  // Educational event handlers
-  const handleHandshakeCollected = useCallback((data: { token: HandshakeToken; collected: HandshakeToken[] }) => {
-    setCollectedHandshake(data.collected)
+  // Theme-based event handlers
+  const handleThemeInit = useCallback((data: ThemeInfo) => {
+    setThemeInfo(data)
+    setCollectedIds([])
+    setAllCollected(false)
   }, [])
 
-  const handleHandshakeComplete = useCallback(() => {
-    setHandshakeComplete(true)
+  const handleCollectibleCollected = useCallback((data: { id: string; collected: string[] }) => {
+    setCollectedIds(data.collected)
   }, [])
 
-  const handlePacketPart = useCallback((data: { part: PacketPart; collected: PacketPart[]; inOrder: boolean }) => {
-    setCollectedPacketParts(data.collected)
-  }, [])
-
-  const handlePacketAssembled = useCallback(() => {
-    setPacketAssembled(true)
+  const handleCollectiblesComplete = useCallback(() => {
+    setAllCollected(true)
   }, [])
 
   const handleEducationShow = useCallback((data: EducationPopup) => {
     setEducationPopup(data)
-    // Auto-hide after 3 seconds
     setTimeout(() => {
       setEducationPopup(null)
     }, 3000)
@@ -121,10 +115,9 @@ export function PlatformerChallenge({ config, onAnswer }: PlatformerChallengePro
     EventBus.on('layer:completed', handleLayerComplete)
     EventBus.on('player:died', handlePlayerDied)
     EventBus.on('game:pause', handlePause)
-    EventBus.on('handshake:collected', handleHandshakeCollected)
-    EventBus.on('handshake:complete', handleHandshakeComplete)
-    EventBus.on('packet:part', handlePacketPart)
-    EventBus.on('packet:assembled', handlePacketAssembled)
+    EventBus.on('theme:init', handleThemeInit)
+    EventBus.on('collectible:collected', handleCollectibleCollected)
+    EventBus.on('collectibles:complete', handleCollectiblesComplete)
     EventBus.on('education:show', handleEducationShow)
     EventBus.on('education:hide', handleEducationHide)
 
@@ -134,21 +127,19 @@ export function PlatformerChallenge({ config, onAnswer }: PlatformerChallengePro
       EventBus.off('layer:completed', handleLayerComplete)
       EventBus.off('player:died', handlePlayerDied)
       EventBus.off('game:pause', handlePause)
-      EventBus.off('handshake:collected', handleHandshakeCollected)
-      EventBus.off('handshake:complete', handleHandshakeComplete)
-      EventBus.off('packet:part', handlePacketPart)
-      EventBus.off('packet:assembled', handlePacketAssembled)
+      EventBus.off('theme:init', handleThemeInit)
+      EventBus.off('collectible:collected', handleCollectibleCollected)
+      EventBus.off('collectibles:complete', handleCollectiblesComplete)
       EventBus.off('education:show', handleEducationShow)
       EventBus.off('education:hide', handleEducationHide)
     }
-  }, [handleDamage, handleScore, handleLayerComplete, handlePlayerDied, handlePause, handleHandshakeCollected, handleHandshakeComplete, handlePacketPart, handlePacketAssembled, handleEducationShow, handleEducationHide])
+  }, [handleDamage, handleScore, handleLayerComplete, handlePlayerDied, handlePause, handleThemeInit, handleCollectibleCollected, handleCollectiblesComplete, handleEducationShow, handleEducationHide])
 
   // Initialize Phaser game (dynamic import to avoid SSR issues)
   useEffect(() => {
     if (!gameContainerRef.current || gameRef.current) return
 
     const initGame = async () => {
-      // Dynamic imports for browser-only Phaser
       const Phaser = (await import('phaser')).default
       const { createGameConfig } = await import('@/game/config')
       const { NetworkScene } = await import('@/game/scenes/NetworkScene')
@@ -192,8 +183,20 @@ export function PlatformerChallenge({ config, onAnswer }: PlatformerChallengePro
     }
   }, [config])
 
-  const handshakeTokens: HandshakeToken[] = ['SYN', 'SYN-ACK', 'ACK']
-  const packetParts: PacketPart[] = ['header', 'payload', 'checksum']
+  // Get theme-specific colors
+  const getThemeColors = (theme: string) => {
+    const colors: Record<string, { bg: string; border: string; text: string; icon: string }> = {
+      tcp: { bg: 'bg-blue-900/30', border: 'border-blue-500/30', text: 'text-blue-400', icon: 'text-blue-400' },
+      http: { bg: 'bg-orange-900/30', border: 'border-orange-500/30', text: 'text-orange-400', icon: 'text-orange-400' },
+      auth: { bg: 'bg-yellow-900/30', border: 'border-yellow-500/30', text: 'text-yellow-400', icon: 'text-yellow-400' },
+      api: { bg: 'bg-pink-900/30', border: 'border-pink-500/30', text: 'text-pink-400', icon: 'text-pink-400' },
+      none: { bg: 'bg-gray-900/30', border: 'border-gray-500/30', text: 'text-gray-400', icon: 'text-gray-400' },
+    }
+    return colors[theme] || colors.none
+  }
+
+  const themeColors = themeInfo ? getThemeColors(themeInfo.theme) : getThemeColors('none')
+  const hasCollectibles = themeInfo && themeInfo.collectibles.length > 0
 
   return (
     <div className="space-y-4">
@@ -205,7 +208,8 @@ export function PlatformerChallenge({ config, onAnswer }: PlatformerChallengePro
             Navigate through the network layer
           </p>
           <p className="text-sm text-white/60 mt-1">
-            Use <kbd className="px-2 py-1 bg-white/10 rounded">Arrow Keys</kbd> to move and jump. Collect TCP tokens and assemble packets!
+            Use <kbd className="px-2 py-1 bg-white/10 rounded">Arrow Keys</kbd> to move and jump.
+            {hasCollectibles && ` Collect ${themeInfo?.themeConfig.name} items!`}
           </p>
         </div>
       </div>
@@ -234,73 +238,48 @@ export function PlatformerChallenge({ config, onAnswer }: PlatformerChallengePro
         </div>
       </div>
 
-      {/* Educational HUD - TCP Handshake Progress */}
-      <div className="flex items-center justify-between px-4 py-3 bg-blue-900/30 rounded-lg border border-blue-500/30">
-        <div className="flex items-center gap-3">
-          <Network className="w-5 h-5 text-blue-400" />
-          <span className="text-white/80 text-sm font-medium">TCP Handshake:</span>
-        </div>
-        <div data-testid="handshake-progress" className="flex items-center gap-2">
-          {handshakeTokens.map((token, index) => {
-            const isCollected = collectedHandshake.includes(token)
-            const isNext = !isCollected && (index === 0 || collectedHandshake.includes(handshakeTokens[index - 1]))
-            return (
-              <div key={token} className="flex items-center gap-1">
-                <div
-                  className={cn(
-                    'px-2 py-1 rounded text-xs font-mono font-bold transition-all duration-300',
-                    isCollected
-                      ? 'bg-green-500 text-white'
-                      : isNext
-                        ? 'bg-blue-500/50 text-blue-200 animate-pulse'
-                        : 'bg-gray-700 text-gray-400'
+      {/* Theme-based Progress HUD */}
+      {hasCollectibles && (
+        <div className={cn('flex items-center justify-between px-4 py-3 rounded-lg border', themeColors.bg, themeColors.border)}>
+          <div className="flex items-center gap-3">
+            <Target className={cn('w-5 h-5', themeColors.icon)} />
+            <span className={cn('text-sm font-medium', themeColors.text)}>
+              {themeInfo?.themeConfig.name}:
+            </span>
+          </div>
+          <div data-testid="collectible-progress" className="flex items-center gap-2">
+            {themeInfo?.collectibles.map((item, index) => {
+              const isCollected = collectedIds.includes(item.id)
+              const isNext = !isCollected && index === collectedIds.length
+              return (
+                <div key={item.id} className="flex items-center gap-1">
+                  <div
+                    className={cn(
+                      'px-2 py-1 rounded text-xs font-medium transition-all duration-300',
+                      isCollected
+                        ? 'bg-green-500 text-white'
+                        : isNext
+                          ? 'bg-white/20 text-white animate-pulse'
+                          : 'bg-gray-700 text-gray-400'
+                    )}
+                  >
+                    {item.label}
+                  </div>
+                  {index < (themeInfo?.collectibles.length || 0) - 1 && (
+                    <span className={cn(
+                      'text-lg',
+                      isCollected ? 'text-green-400' : 'text-gray-600'
+                    )}>→</span>
                   )}
-                >
-                  {token}
                 </div>
-                {index < handshakeTokens.length - 1 && (
-                  <span className={cn(
-                    'text-lg',
-                    isCollected ? 'text-green-400' : 'text-gray-600'
-                  )}>→</span>
-                )}
-              </div>
-            )
-          })}
-          {handshakeComplete && (
-            <CheckCircle className="w-5 h-5 text-green-400 ml-2" />
-          )}
+              )
+            })}
+            {allCollected && (
+              <Sparkles className="w-5 h-5 text-green-400 ml-2" />
+            )}
+          </div>
         </div>
-      </div>
-
-      {/* Educational HUD - Packet Assembly Progress */}
-      <div className="flex items-center justify-between px-4 py-3 bg-purple-900/30 rounded-lg border border-purple-500/30">
-        <div className="flex items-center gap-3">
-          <Package className="w-5 h-5 text-purple-400" />
-          <span className="text-white/80 text-sm font-medium">Packet Assembly:</span>
-        </div>
-        <div data-testid="packet-progress" className="flex items-center gap-3">
-          {packetParts.map((part) => {
-            const isCollected = collectedPacketParts.includes(part)
-            return (
-              <div
-                key={part}
-                className={cn(
-                  'px-3 py-1 rounded text-xs font-medium transition-all duration-300',
-                  isCollected
-                    ? 'bg-purple-500 text-white'
-                    : 'bg-gray-700 text-gray-400'
-                )}
-              >
-                {part.charAt(0).toUpperCase() + part.slice(1)}
-              </div>
-            )
-          })}
-          {packetAssembled && (
-            <Sparkles className="w-5 h-5 text-purple-400 ml-2" />
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Game Container */}
       <div className="relative">
@@ -360,16 +339,12 @@ export function PlatformerChallenge({ config, onAnswer }: PlatformerChallengePro
           <p className="text-white/70 text-sm mt-2">
             Final Score: {score} points
           </p>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-            <div className="flex items-center gap-2 text-white/60">
-              <Network className="w-4 h-4" />
-              <span>TCP Handshake: {handshakeComplete ? 'Complete' : 'Incomplete'}</span>
+          {hasCollectibles && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-white/60">
+              <Target className="w-4 h-4" />
+              <span>{themeInfo?.themeConfig.name}: {allCollected ? 'Complete!' : `${collectedIds.length}/${themeInfo?.collectibles.length}`}</span>
             </div>
-            <div className="flex items-center gap-2 text-white/60">
-              <Package className="w-4 h-4" />
-              <span>Packets Assembled: {packetAssembled ? 'Yes' : 'No'}</span>
-            </div>
-          </div>
+          )}
         </div>
       )}
 

@@ -48,9 +48,23 @@ interface GameEvents {
   'packet:part': (data: { part: PacketPart; collected: PacketPart[]; inOrder: boolean }) => void
   'packet:assembled': (data: { bonus: boolean }) => void
 
+  // API Layer events (educational)
+  'method:collected': (data: { method: string; collected: string[] }) => void
+  'header:collected': (data: { header: string; collected: string[] }) => void
+  'auth:acquired': (data: { token: string; headers: string[] }) => void
+  'request:success': (data: { endpoint: string; method: string; statusCode: number }) => void
+  'request:failed': (data: { endpoint: string; method: string; statusCode: number; reason: string }) => void
+  'statuscode:learned': (data: { code: number; name: string }) => void
+  'crud:complete': (data: Record<string, never>) => void
+
   // Educational popup events
   'education:show': (data: { title: string; message: string; type: 'info' | 'warning' | 'success' }) => void
   'education:hide': () => void
+
+  // Theme-based collectible events
+  'theme:init': (data: { theme: string; themeConfig: { name: string; description: string; collectibles: Array<{ id: string; label: string }> }; collectibles: Array<{ id: string; label: string; order: number }> }) => void
+  'collectible:collected': (data: { id: string; label: string; order: number; inOrder: boolean; collected: string[]; theme: string }) => void
+  'collectibles:complete': (data: { theme: string; bonus: boolean }) => void
 }
 
 class TypedEventBus extends EventEmitter<GameEvents> {}
