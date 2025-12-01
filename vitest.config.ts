@@ -27,7 +27,7 @@ export default defineConfig({
       }
     },
     pool: 'forks',
-    isolate: false
+    isolate: true
   },
   resolve: {
     alias: {
