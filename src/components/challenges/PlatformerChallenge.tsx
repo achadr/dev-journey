@@ -42,6 +42,7 @@ export function PlatformerChallenge({ config, onAnswer }: PlatformerChallengePro
   const gameContainerRef = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const gameRef = useRef<any>(null)
+  const educationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [health, setHealth] = useState(100)
   const [score, setScore] = useState(0)
@@ -98,8 +99,11 @@ export function PlatformerChallenge({ config, onAnswer }: PlatformerChallengePro
   }, [])
 
   const handleEducationShow = useCallback((data: EducationPopup) => {
+    if (educationTimeoutRef.current) {
+      clearTimeout(educationTimeoutRef.current)
+    }
     setEducationPopup(data)
-    setTimeout(() => {
+    educationTimeoutRef.current = setTimeout(() => {
       setEducationPopup(null)
     }, 3000)
   }, [])
@@ -132,6 +136,10 @@ export function PlatformerChallenge({ config, onAnswer }: PlatformerChallengePro
       EventBus.off('collectibles:complete', handleCollectiblesComplete)
       EventBus.off('education:show', handleEducationShow)
       EventBus.off('education:hide', handleEducationHide)
+      // Clear education timeout on unmount
+      if (educationTimeoutRef.current) {
+        clearTimeout(educationTimeoutRef.current)
+      }
     }
   }, [handleDamage, handleScore, handleLayerComplete, handlePlayerDied, handlePause, handleThemeInit, handleCollectibleCollected, handleCollectiblesComplete, handleEducationShow, handleEducationHide])
 

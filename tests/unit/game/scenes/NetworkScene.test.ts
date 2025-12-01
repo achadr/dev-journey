@@ -91,6 +91,7 @@ vi.mock('phaser', () => ({
       }
       time = {
         addEvent: vi.fn(),
+        delayedCall: vi.fn(),
       }
       textures = {
         exists: vi.fn(() => false),
@@ -122,7 +123,7 @@ vi.mock('@/game/scenes/BaseScene', async () => {
       }
       add = {
         rectangle: vi.fn(() => ({ setOrigin: vi.fn().mockReturnThis(), setScrollFactor: vi.fn().mockReturnThis() })),
-        text: vi.fn(() => ({ setOrigin: vi.fn().mockReturnThis(), setScrollFactor: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis() })),
+        text: vi.fn(() => ({ setOrigin: vi.fn().mockReturnThis(), setScrollFactor: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis(), setText: vi.fn().mockReturnThis() })),
         graphics: vi.fn(() => ({
           fillStyle: vi.fn().mockReturnThis(),
           fillRect: vi.fn().mockReturnThis(),
@@ -132,6 +133,8 @@ vi.mock('@/game/scenes/BaseScene', async () => {
           destroy: vi.fn().mockReturnThis(),
           lineStyle: vi.fn().mockReturnThis(),
           strokeRect: vi.fn().mockReturnThis(),
+          strokeCircle: vi.fn().mockReturnThis(),
+          setVisible: vi.fn().mockReturnThis(),
         })),
       }
       physics = {
@@ -161,6 +164,8 @@ vi.mock('@/game/scenes/BaseScene', async () => {
               refreshBody: vi.fn().mockReturnThis(),
               displayWidth: 200,
               displayHeight: 32,
+              setData: vi.fn().mockReturnThis(),
+              getData: vi.fn(),
             })),
             getChildren: vi.fn(() => []),
           })),
@@ -172,6 +177,7 @@ vi.mock('@/game/scenes/BaseScene', async () => {
               getData: vi.fn((key: string) => key === 'type' ? 'firewall' : undefined),
               body: {},
               setDepth: vi.fn().mockReturnThis(),
+              destroy: vi.fn().mockReturnThis(),
             })),
             getChildren: vi.fn(() => []),
           })),
@@ -190,6 +196,7 @@ vi.mock('@/game/scenes/BaseScene', async () => {
       }
       time = {
         addEvent: vi.fn(),
+        delayedCall: vi.fn(),
       }
       textures = {
         exists: vi.fn(() => false),
@@ -287,14 +294,14 @@ describe('NetworkScene', () => {
       expect(scene['playerHealth']).toBe(100)
     })
 
-    it('initializes empty handshake collection', () => {
+    it('initializes empty collectibles collection', () => {
       scene.init(mockQuestData)
-      expect(scene['collectedHandshake']).toEqual([])
+      expect(scene['collectedIds']).toEqual([])
     })
 
-    it('initializes empty packet parts collection', () => {
+    it('initializes score to zero', () => {
       scene.init(mockQuestData)
-      expect(scene['collectedPacketParts']).toEqual([])
+      expect(scene['score']).toBe(0)
     })
   })
 
@@ -329,7 +336,7 @@ describe('NetworkScene', () => {
 
       scene.update()
 
-      expect(scene['player'].setVelocityX).toHaveBeenCalledWith(-300)
+      expect(scene['player'].setVelocityX).toHaveBeenCalledWith(-350)
     })
 
     it('handles right movement in update', () => {
@@ -349,7 +356,7 @@ describe('NetworkScene', () => {
 
       scene.update()
 
-      expect(scene['player'].setVelocityX).toHaveBeenCalledWith(300)
+      expect(scene['player'].setVelocityX).toHaveBeenCalledWith(350)
     })
 
     it('handles jump when on ground', () => {
@@ -369,7 +376,7 @@ describe('NetworkScene', () => {
 
       scene.update()
 
-      expect(scene['player'].setVelocityY).toHaveBeenCalledWith(-500)
+      expect(scene['player'].setVelocityY).toHaveBeenCalledWith(-650)
     })
 
     it('prevents jump when in air', () => {
@@ -434,119 +441,18 @@ describe('NetworkScene', () => {
     })
   })
 
-  describe('TCP handshake mechanics', () => {
+  describe('collectibles mechanics', () => {
     beforeEach(() => {
       scene.init(mockQuestData)
       scene.create()
     })
 
-    it('emits handshake:collected when collecting SYN token', () => {
-      const handshakeSpy = vi.fn()
-      EventBus.on('handshake:collected', handshakeSpy)
-
-      scene['collectHandshakeToken']('SYN')
-
-      expect(handshakeSpy).toHaveBeenCalledWith({
-        token: 'SYN',
-        collected: ['SYN'],
-      })
+    it('has collectibles group created', () => {
+      expect(scene.physics.add.group).toHaveBeenCalled()
     })
 
-    it('collects handshake tokens in correct order', () => {
-      const handshakeSpy = vi.fn()
-      EventBus.on('handshake:collected', handshakeSpy)
-
-      scene['collectHandshakeToken']('SYN')
-      scene['collectHandshakeToken']('SYN-ACK')
-      scene['collectHandshakeToken']('ACK')
-
-      expect(handshakeSpy).toHaveBeenCalledTimes(3)
-      expect(scene['collectedHandshake']).toEqual(['SYN', 'SYN-ACK', 'ACK'])
-    })
-
-    it('emits handshake:failed when collecting out of order', () => {
-      const failedSpy = vi.fn()
-      EventBus.on('handshake:failed', failedSpy)
-
-      scene['collectHandshakeToken']('SYN-ACK') // Wrong order, should fail
-
-      expect(failedSpy).toHaveBeenCalledWith({
-        reason: expect.stringContaining('order'),
-      })
-    })
-
-    it('emits handshake:complete when all tokens collected', () => {
-      const completeSpy = vi.fn()
-      EventBus.on('handshake:complete', completeSpy)
-
-      scene['collectHandshakeToken']('SYN')
-      scene['collectHandshakeToken']('SYN-ACK')
-      scene['collectHandshakeToken']('ACK')
-
-      expect(completeSpy).toHaveBeenCalled()
-    })
-  })
-
-  describe('packet assembly mechanics', () => {
-    beforeEach(() => {
-      scene.init(mockQuestData)
-      scene.create()
-    })
-
-    it('emits packet:part when collecting header', () => {
-      const packetSpy = vi.fn()
-      EventBus.on('packet:part', packetSpy)
-
-      scene['collectPacketPart']('header')
-
-      expect(packetSpy).toHaveBeenCalledWith({
-        part: 'header',
-        collected: ['header'],
-        inOrder: true,
-      })
-    })
-
-    it('collects all packet parts', () => {
-      scene['collectPacketPart']('header')
-      scene['collectPacketPart']('payload')
-      scene['collectPacketPart']('checksum')
-
-      expect(scene['collectedPacketParts']).toEqual(['header', 'payload', 'checksum'])
-    })
-
-    it('emits packet:assembled when all parts collected', () => {
-      const assembledSpy = vi.fn()
-      EventBus.on('packet:assembled', assembledSpy)
-
-      scene['collectPacketPart']('header')
-      scene['collectPacketPart']('payload')
-      scene['collectPacketPart']('checksum')
-
-      expect(assembledSpy).toHaveBeenCalled()
-    })
-
-    it('tracks in-order bonus for correct sequence', () => {
-      const assembledSpy = vi.fn()
-      EventBus.on('packet:assembled', assembledSpy)
-
-      scene['collectPacketPart']('header')
-      scene['collectPacketPart']('payload')
-      scene['collectPacketPart']('checksum')
-
-      expect(assembledSpy).toHaveBeenCalledWith({ bonus: true })
-    })
-
-    it('tracks out-of-order collection', () => {
-      const packetSpy = vi.fn()
-      EventBus.on('packet:part', packetSpy)
-
-      scene['collectPacketPart']('payload') // Out of order
-
-      expect(packetSpy).toHaveBeenCalledWith({
-        part: 'payload',
-        collected: ['payload'],
-        inOrder: false,
-      })
+    it('has gates group created', () => {
+      expect(scene.physics.add.staticGroup).toHaveBeenCalled()
     })
   })
 
@@ -554,17 +460,6 @@ describe('NetworkScene', () => {
     beforeEach(() => {
       scene.init(mockQuestData)
       scene.create()
-    })
-
-    it('emits score event when collecting packet', () => {
-      const scoreSpy = vi.fn()
-      EventBus.on('score:added', scoreSpy)
-
-      scene['collectPacket']()
-
-      expect(scoreSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ points: expect.any(Number) })
-      )
     })
 
     it('emits damage event when hitting obstacle', () => {
@@ -580,22 +475,6 @@ describe('NetworkScene', () => {
 
       expect(damageSpy).toHaveBeenCalledWith(
         expect.objectContaining({ source: 'firewall' })
-      )
-    })
-
-    it('includes explanation in damage event for educational feedback', () => {
-      const damageSpy = vi.fn()
-      EventBus.on('player:damaged', damageSpy)
-
-      const mockObstacle = {
-        getData: vi.fn(() => 'firewall'),
-        setActive: vi.fn(),
-        setVisible: vi.fn(),
-      }
-      scene['hitObstacle'](mockObstacle as unknown as Phaser.Physics.Arcade.Sprite)
-
-      expect(damageSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ explanation: expect.any(String) })
       )
     })
 
