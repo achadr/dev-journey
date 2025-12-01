@@ -5,7 +5,7 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   test: {
-    environment: 'jsdom',
+    environment: 'happy-dom',
     globals: true,
     setupFiles: ['./tests/utils/setup.ts'],
     include: ['tests/unit/**/*.test.ts', 'tests/unit/**/*.test.tsx', 'tests/integration/**/*.test.ts', 'tests/integration/**/*.test.tsx'],
@@ -25,7 +25,9 @@ export default defineConfig({
         functions: 80,
         lines: 80
       }
-    }
+    },
+    pool: 'forks',
+    isolate: false
   },
   resolve: {
     alias: {
@@ -33,5 +35,14 @@ export default defineConfig({
       '@/tests': path.resolve(__dirname, './tests'),
       '@/content': path.resolve(__dirname, './content')
     }
+  },
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-dom/client',
+      'react/jsx-runtime',
+      'react/jsx-dev-runtime'
+    ]
   }
 })

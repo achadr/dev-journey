@@ -49,6 +49,7 @@ prisma/dev.db-journal
 *.swp
 *.swo
 *~
+.claude/
 
 # Agent specifications
 agents/
