@@ -4,4 +4,5 @@ export { PickEndpoint } from './PickEndpoint'
 export { SelectQuery } from './SelectQuery'
 export { MiddlewareSequence } from './MiddlewareSequence'
 export { StatusCodeMatch } from './StatusCodeMatch'
+export { SequencePuzzle } from './SequencePuzzle'
 // PlatformerChallenge is dynamically imported to avoid SSR issues with Phaser

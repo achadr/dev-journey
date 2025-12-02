@@ -14,7 +14,7 @@ async function main() {
   await prisma.quest.deleteMany({
     where: {
       id: {
-        in: ['tutorial-quest-001', 'auth-quest-001', 'api-quest-001', 'api-quest-002']
+        in: ['tutorial-quest-001', 'auth-quest-001', 'api-quest-001', 'api-quest-002', 'async-quest-001']
       }
     }
   })
@@ -434,6 +434,118 @@ async function main() {
     },
   })
   console.log('✅ Advanced API quest created:', advancedApiQuest.name)
+
+  // Create Async Operations quest (demonstrates SEQUENCE_PUZZLE)
+  const asyncQuest = await prisma.quest.upsert({
+    where: { id: 'async-quest-001' },
+    update: {},
+    create: {
+      id: 'async-quest-001',
+      name: 'Async Flow Master',
+      description: 'Master the art of sequencing asynchronous operations correctly. Learn execution order and dependencies.',
+      difficulty: 3,
+      isPublic: true,
+      isActive: true,
+      authorId: admin.id,
+      tags: ['async', 'intermediate', 'puzzle'],
+      layers: {
+        create: [
+          {
+            type: LayerType.BROWSER,
+            order: 0,
+            challenge: {
+              create: {
+                type: ChallengeType.SEQUENCE_PUZZLE,
+                config: {
+                  question: 'Order the browser rendering steps correctly',
+                  steps: [
+                    { id: 'parse-html', label: 'Parse HTML', description: 'Browser parses the HTML document', category: 'init' },
+                    { id: 'build-dom', label: 'Build DOM', description: 'Construct the DOM tree', category: 'process' },
+                    { id: 'parse-css', label: 'Parse CSS', description: 'Parse stylesheets', category: 'process' },
+                    { id: 'render-tree', label: 'Build Render Tree', description: 'Combine DOM and CSSOM', category: 'execute' },
+                    { id: 'layout', label: 'Layout', description: 'Calculate element positions', category: 'execute' },
+                    { id: 'paint', label: 'Paint', description: 'Draw pixels to screen', category: 'complete' },
+                  ],
+                  correctOrder: ['parse-html', 'build-dom', 'parse-css', 'render-tree', 'layout', 'paint'],
+                  hint: 'HTML must be parsed before DOM can be built, and both DOM and CSS are needed for the render tree',
+                  explanation: 'The browser follows a specific rendering pipeline: Parse HTML → Build DOM → Parse CSS → Build Render Tree → Layout → Paint',
+                },
+                maxScore: 150,
+              },
+            },
+          },
+          {
+            type: LayerType.NETWORK,
+            order: 1,
+            challenge: {
+              create: {
+                type: ChallengeType.SEQUENCE_PUZZLE,
+                config: {
+                  question: 'Order the TCP three-way handshake steps',
+                  steps: [
+                    { id: 'syn', label: 'SYN', description: 'Client sends SYN packet', category: 'init' },
+                    { id: 'syn-ack', label: 'SYN-ACK', description: 'Server responds with SYN-ACK', category: 'process' },
+                    { id: 'ack', label: 'ACK', description: 'Client sends ACK to establish connection', category: 'complete' },
+                  ],
+                  correctOrder: ['syn', 'syn-ack', 'ack'],
+                  hint: 'The client initiates the handshake',
+                  explanation: 'TCP uses a three-way handshake: SYN → SYN-ACK → ACK to establish a reliable connection',
+                },
+                maxScore: 100,
+              },
+            },
+          },
+          {
+            type: LayerType.API,
+            order: 2,
+            challenge: {
+              create: {
+                type: ChallengeType.SEQUENCE_PUZZLE,
+                config: {
+                  question: 'Order the authentication middleware execution',
+                  steps: [
+                    { id: 'rate-limit', label: 'Rate Limiting', description: 'Check request rate', category: 'validate' },
+                    { id: 'auth', label: 'Authentication', description: 'Verify user identity', category: 'validate' },
+                    { id: 'permission', label: 'Authorization', description: 'Check user permissions', category: 'validate' },
+                    { id: 'handler', label: 'Route Handler', description: 'Execute business logic', category: 'execute' },
+                    { id: 'response', label: 'Send Response', description: 'Return result to client', category: 'complete' },
+                  ],
+                  correctOrder: ['rate-limit', 'auth', 'permission', 'handler', 'response'],
+                  hint: 'Security checks happen before business logic execution',
+                  explanation: 'Middleware executes in order: Rate limiting → Authentication → Authorization → Handler → Response',
+                },
+                maxScore: 150,
+              },
+            },
+          },
+          {
+            type: LayerType.DATABASE,
+            order: 3,
+            challenge: {
+              create: {
+                type: ChallengeType.SEQUENCE_PUZZLE,
+                config: {
+                  question: 'Order the database transaction steps correctly',
+                  steps: [
+                    { id: 'begin', label: 'BEGIN TRANSACTION', description: 'Start the transaction', category: 'init' },
+                    { id: 'select', label: 'SELECT balance', description: 'Read current balance', category: 'process' },
+                    { id: 'update', label: 'UPDATE balance', description: 'Modify the balance', category: 'execute' },
+                    { id: 'insert', label: 'INSERT log', description: 'Record the transaction', category: 'execute' },
+                    { id: 'commit', label: 'COMMIT', description: 'Finalize the transaction', category: 'complete' },
+                  ],
+                  correctOrder: ['begin', 'select', 'update', 'insert', 'commit'],
+                  hint: 'Transactions must begin before any operations and commit at the end',
+                  explanation: 'Database transactions follow ACID principles: BEGIN → Read → Update → Log → COMMIT ensures data integrity',
+                },
+                maxScore: 150,
+              },
+            },
+          },
+        ],
+      },
+    },
+  })
+  console.log('✅ Async Operations quest created:', asyncQuest.name)
 
   // Create achievements
   const achievements = [

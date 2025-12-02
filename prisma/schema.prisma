@@ -137,6 +137,9 @@ enum ChallengeType {
   SELECT_QUERY
   WRITE_QUERY
   FIX_QUERY
+
+  // Puzzle challenges (all layers)
+  SEQUENCE_PUZZLE
 }
 
 // ============================================

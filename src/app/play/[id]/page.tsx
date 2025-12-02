@@ -15,7 +15,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import dynamic from "next/dynamic";
-import { SelectMethod, AddHeaders, PickEndpoint, SelectQuery, MiddlewareSequence, StatusCodeMatch } from "@/components/challenges";
+import { SelectMethod, AddHeaders, PickEndpoint, SelectQuery, MiddlewareSequence, StatusCodeMatch, SequencePuzzle } from "@/components/challenges";
 
 // Dynamically import PlatformerChallenge to avoid SSR issues with Phaser
 const PlatformerChallenge = dynamic(
@@ -168,7 +168,7 @@ export default function PlayPage() {
   };
 
   // Handle challenge answer
-  const handleChallengeAnswer = (result: { correct: boolean; answer?: string | number; headers?: Record<string, string> }) => {
+  const handleChallengeAnswer = (result: { correct: boolean; answer?: string | number | string[]; order?: number[]; headers?: Record<string, string>; score?: number }) => {
     setChallengeCompleted(true);
 
     // Auto-advance after delay if correct
@@ -263,6 +263,14 @@ export default function PlayPage() {
           <StatusCodeMatch
             key={challengeKey}
             config={challengeConfig as { scenario: string; statusCodes: number[]; correctCode: number; explanation?: string }}
+            onAnswer={handleChallengeAnswer}
+          />
+        );
+      case 'SEQUENCE_PUZZLE':
+        return (
+          <SequencePuzzle
+            key={challengeKey}
+            config={challengeConfig as { question: string; steps: Array<{ id: string; label: string; description?: string; category?: string }>; correctOrder: string[]; hint?: string; explanation?: string }}
             onAnswer={handleChallengeAnswer}
           />
         );
