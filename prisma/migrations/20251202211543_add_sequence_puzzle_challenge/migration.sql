@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "ChallengeType" ADD VALUE 'SEQUENCE_PUZZLE';
