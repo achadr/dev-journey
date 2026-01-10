@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { SelectMethod, AddHeaders, PickEndpoint, SelectQuery, MiddlewareSequence, StatusCodeMatch, SequencePuzzle } from "@/components/challenges";
+import { saveProgress } from "@/lib/api/progress";
 
 // Dynamically import PlatformerChallenge to avoid SSR issues with Phaser
 const PlatformerChallenge = dynamic(
@@ -74,6 +75,8 @@ export default function PlayPage() {
   const [isPaused, setIsPaused] = useState(false);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [challengeCompleted, setChallengeCompleted] = useState(false);
+  const [currentScore, setCurrentScore] = useState(0);
+  const [layerStartTime, setLayerStartTime] = useState(Date.now());
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -171,19 +174,47 @@ export default function PlayPage() {
   const handleChallengeAnswer = (result: { correct: boolean; answer?: string | number | string[]; order?: number[]; headers?: Record<string, string>; score?: number }) => {
     setChallengeCompleted(true);
 
+    // Update score
+    if (result.score !== undefined) {
+      setCurrentScore(prevScore => prevScore + result.score!);
+    }
+
     // Auto-advance after delay if correct
     if (result.correct) {
       setTimeout(() => {
-        advanceToNextLayer();
+        advanceToNextLayer(result.score || 0);
       }, 2000);
     }
   };
 
   // Advance to next layer
-  const advanceToNextLayer = () => {
-    if (quest && currentLayerIndex < quest.layers.length - 1) {
+  const advanceToNextLayer = async (layerScore: number) => {
+    if (!quest) return;
+
+    // Calculate time spent on this layer
+    const timeSpent = Math.floor((Date.now() - layerStartTime) / 1000);
+
+    // Save progress (only for authenticated users, not guests)
+    if (!isGuest) {
+      try {
+        const isQuestCompleted = currentLayerIndex >= quest.layers.length - 1;
+        await saveProgress({
+          questId: quest.id,
+          layerIndex: currentLayerIndex,
+          score: layerScore,
+          completed: isQuestCompleted,
+          timeSpent,
+        });
+      } catch (error) {
+        console.error('Failed to save progress:', error);
+        // Continue anyway - don't block progression
+      }
+    }
+
+    if (currentLayerIndex < quest.layers.length - 1) {
       setCurrentLayerIndex(currentLayerIndex + 1);
       setChallengeCompleted(false);
+      setLayerStartTime(Date.now()); // Reset timer for next layer
       const nextLayer = quest.layers.sort((a, b) => a.order - b.order)[currentLayerIndex + 1];
       if (nextLayer?.timeLimit) {
         setTimeRemaining(nextLayer.timeLimit);
@@ -413,7 +444,7 @@ export default function PlayPage() {
               {challengeCompleted && (
                 <div className="flex justify-center mt-6">
                   <Button
-                    onClick={advanceToNextLayer}
+                    onClick={() => advanceToNextLayer(currentScore)}
                     className="bg-purple-500 hover:bg-purple-600 gap-2"
                   >
                     {currentLayerIndex < (quest?.layers.length || 0) - 1 ? (
