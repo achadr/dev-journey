@@ -42,13 +42,24 @@ export const questQuerySchema = z.object({
 // PROGRESS SCHEMAS
 // ============================================
 
-export const saveProgressSchema = z.object({
-  userId: z.string().uuid('Invalid user ID'),
-  questId: z.string().uuid('Invalid quest ID'),
+export const layerProgressSchema = z.object({
   layerIndex: z.number().min(0),
   score: z.number().min(0),
   completed: z.boolean(),
   timeSpent: z.number().min(0), // in seconds
+})
+
+export const saveProgressSchema = z.object({
+  questId: z.string().min(1, 'Quest ID is required'),
+  layerIndex: z.number().min(0),
+  score: z.number().min(0),
+  completed: z.boolean(),
+  timeSpent: z.number().min(0), // in seconds
+  layerProgress: z.array(layerProgressSchema).optional(),
+})
+
+export const questIdParamSchema = z.object({
+  questId: z.string().min(1, 'Quest ID is required'),
 })
 
 // ============================================
@@ -78,5 +89,6 @@ export type RegisterInput = z.infer<typeof registerSchema>
 export type LoginInput = z.infer<typeof loginSchema>
 export type QuestQuery = z.infer<typeof questQuerySchema>
 export type SaveProgressInput = z.infer<typeof saveProgressSchema>
+export type LayerProgressInput = z.infer<typeof layerProgressSchema>
 export type CreateQuestInput = z.infer<typeof createQuestSchema>
 export type UpdateQuestInput = z.infer<typeof updateQuestSchema>
