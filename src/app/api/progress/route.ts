@@ -34,10 +34,6 @@ export async function POST(request: NextRequest) {
       update: {
         layerIndex,
         score,
-        bestScore: {
-          // Only update bestScore if new score is higher
-          set: undefined, // This will be handled by the database
-        },
         completed,
         timeSpent: {
           increment: timeSpent,
@@ -45,7 +41,6 @@ export async function POST(request: NextRequest) {
         attempts: {
           increment: 1,
         },
-        bestTime: completed && timeSpent ? timeSpent : undefined,
       },
       create: {
         userId: session.userId,

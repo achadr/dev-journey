@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { SelectMethod, AddHeaders, PickEndpoint, SelectQuery, MiddlewareSequence, StatusCodeMatch, SequencePuzzle } from "@/components/challenges";
-import { saveProgress } from "@/lib/api/progress";
+import { saveProgress, getQuestProgress } from "@/lib/api/progress";
 
 // Dynamically import PlatformerChallenge to avoid SSR issues with Phaser
 const PlatformerChallenge = dynamic(
@@ -77,6 +77,8 @@ export default function PlayPage() {
   const [challengeCompleted, setChallengeCompleted] = useState(false);
   const [currentScore, setCurrentScore] = useState(0);
   const [layerStartTime, setLayerStartTime] = useState(Date.now());
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+  const [savedProgress, setSavedProgress] = useState<any>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -119,6 +121,26 @@ export default function PlayPage() {
       fetchQuest();
     }
   }, [isAuthenticated, questId, fetchQuest]);
+
+  // Load saved progress after quest is loaded
+  useEffect(() => {
+    const loadProgress = async () => {
+      if (!quest || isGuest) return;
+
+      try {
+        const progress = await getQuestProgress(quest.id);
+        if (progress && !progress.completed) {
+          setSavedProgress(progress);
+          setShowResumeDialog(true);
+        }
+      } catch (error) {
+        console.error('Failed to load progress:', error);
+        // Continue with fresh start if progress loading fails
+      }
+    };
+
+    loadProgress();
+  }, [quest, isGuest]);
 
   // Timer countdown
   useEffect(() => {
@@ -168,6 +190,27 @@ export default function PlayPage() {
   // Handle pause
   const handlePause = () => {
     setIsPaused(!isPaused);
+  };
+
+  // Handle resume from saved progress
+  const handleResumeProgress = () => {
+    if (savedProgress && quest) {
+      setCurrentLayerIndex(savedProgress.layerIndex);
+      setCurrentScore(savedProgress.score);
+      setShowResumeDialog(false);
+
+      // Set timer for resumed layer
+      const resumeLayer = quest.layers.sort((a, b) => a.order - b.order)[savedProgress.layerIndex];
+      if (resumeLayer?.timeLimit) {
+        setTimeRemaining(resumeLayer.timeLimit);
+      }
+    }
+  };
+
+  // Handle start fresh (ignore saved progress)
+  const handleStartFresh = () => {
+    setShowResumeDialog(false);
+    setSavedProgress(null);
   };
 
   // Handle challenge answer
@@ -461,6 +504,54 @@ export default function PlayPage() {
       </div>
 
       {/* Quit Confirmation Modal */}
+      {/* Resume Progress Dialog */}
+      {showResumeDialog && savedProgress && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <Card className="max-w-md w-full">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <RefreshCw className="w-8 h-8 text-blue-500" />
+                <h2 className="text-xl font-semibold">Continue Quest?</h2>
+              </div>
+              <p className="text-muted-foreground mb-4">
+                You have saved progress for this quest.
+              </p>
+              <div className="bg-muted/50 rounded-lg p-4 mb-6 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Current Layer:</span>
+                  <span className="font-medium">
+                    {savedProgress.layerIndex + 1} of {quest?.layers.length}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Best Score:</span>
+                  <span className="font-medium">{savedProgress.bestScore}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Attempts:</span>
+                  <span className="font-medium">{savedProgress.attempts}</span>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={handleStartFresh}
+                  className="flex-1"
+                >
+                  Start Fresh
+                </Button>
+                <Button
+                  onClick={handleResumeProgress}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600"
+                >
+                  Resume Progress
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {showQuitConfirm && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <Card className="max-w-sm w-full">

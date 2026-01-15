@@ -14,6 +14,8 @@ import {
   User,
   AlertCircle,
   RefreshCw,
+  CheckCircle,
+  TrendingUp,
 } from "lucide-react";
 
 interface Quest {
@@ -40,13 +42,14 @@ interface QuestsResponse {
 
 export default function QuestsPage() {
   const router = useRouter();
-  const { isLoading: authLoading, isAuthenticated } = useAuth();
+  const { isLoading: authLoading, isAuthenticated, isGuest } = useAuth();
 
   const [quests, setQuests] = useState<Quest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [difficultyFilter, setDifficultyFilter] = useState<number | null>(null);
+  const [progressMap, setProgressMap] = useState<Record<string, any>>({});
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -80,11 +83,34 @@ export default function QuestsPage() {
     }
   }, [searchTerm, difficultyFilter]);
 
+  // Fetch progress for all quests
+  const fetchProgress = useCallback(async () => {
+    if (isGuest) return;
+
+    try {
+      const response = await fetch('/api/progress');
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Create a map of questId -> progress
+        const map: Record<string, any> = {};
+        data.data.progress.forEach((prog: any) => {
+          map[prog.questId] = prog;
+        });
+        setProgressMap(map);
+      }
+    } catch (error) {
+      console.error('Failed to load progress:', error);
+      // Continue without progress if it fails
+    }
+  }, [isGuest]);
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchQuests();
+      fetchProgress();
     }
-  }, [isAuthenticated, fetchQuests]);
+  }, [isAuthenticated, fetchQuests, fetchProgress]);
 
   // Debounced search
   useEffect(() => {
@@ -220,6 +246,10 @@ export default function QuestsPage() {
           <div className="grid gap-4 md:grid-cols-2">
             {quests.map((quest) => {
               const difficultyInfo = getDifficultyInfo(quest.difficulty);
+              const progress = progressMap[quest.id];
+              const progressPercent = progress
+                ? Math.round((progress.layerIndex / quest._count.layers) * 100)
+                : 0;
 
               return (
                 <Card
@@ -286,6 +316,39 @@ export default function QuestsPage() {
                             {tag}
                           </span>
                         ))}
+                      </div>
+                    )}
+
+                    {/* Progress Indicator */}
+                    {progress && (
+                      <div className="mt-4 pt-3 border-t border-white/10">
+                        {progress.completed ? (
+                          <div className="flex items-center gap-2 text-green-400 text-sm">
+                            <CheckCircle className="w-4 h-4" />
+                            <span className="font-medium">Completed</span>
+                            <span className="text-white/60 ml-auto">
+                              Best: {progress.bestScore}pts
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-2 text-blue-400">
+                                <TrendingUp className="w-4 h-4" />
+                                <span>In Progress</span>
+                              </div>
+                              <span className="text-white/60">
+                                {progress.layerIndex + 1}/{quest._count.layers} layers
+                              </span>
+                            </div>
+                            <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className="bg-blue-500 h-full transition-all"
+                                style={{ width: `${progressPercent}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </CardContent>
