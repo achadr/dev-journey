@@ -37,6 +37,9 @@ export const errors = {
   notFound: (resource: string) =>
     errorResponse('NOT_FOUND', `${resource} not found`, 404),
 
+  conflict: (message: string) =>
+    errorResponse('CONFLICT', message, 409),
+
   validation: (details: Record<string, string[]>) =>
     errorResponse('VALIDATION_ERROR', 'Invalid request data', 400, details),
 

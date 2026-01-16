@@ -4,6 +4,7 @@ import { validateBody } from '@/lib/api/validate'
 import { saveProgressSchema } from '@/lib/validation/schemas'
 import { prisma } from '@/lib/db/client'
 import { getSession } from '@/lib/auth/session'
+import { checkAndUnlockAchievements } from '@/lib/achievements/checker'
 
 /**
  * POST /api/progress
@@ -104,6 +105,17 @@ export async function POST(request: NextRequest) {
           orderBy: { layerIndex: 'asc' },
         },
       },
+    })
+
+    // Check for achievement unlocks (non-blocking)
+    checkAndUnlockAchievements({
+      userId: session.userId,
+      event: completed ? 'quest_completed' : 'layer_completed',
+      data: {
+        questId,
+      },
+    }).catch((error) => {
+      console.error('Achievement check failed:', error)
     })
 
     return successResponse({
