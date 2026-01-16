@@ -82,6 +82,14 @@ export const createQuestSchema = z.object({
 export const updateQuestSchema = createQuestSchema.partial()
 
 // ============================================
+// ACHIEVEMENT SCHEMAS
+// ============================================
+
+export const unlockAchievementSchema = z.object({
+  achievementId: z.string().min(1, 'Achievement ID is required'),
+})
+
+// ============================================
 // TYPE EXPORTS
 // ============================================
 
@@ -92,3 +100,4 @@ export type SaveProgressInput = z.infer<typeof saveProgressSchema>
 export type LayerProgressInput = z.infer<typeof layerProgressSchema>
 export type CreateQuestInput = z.infer<typeof createQuestSchema>
 export type UpdateQuestInput = z.infer<typeof updateQuestSchema>
+export type UnlockAchievementInput = z.infer<typeof unlockAchievementSchema>
