@@ -90,6 +90,16 @@ export const unlockAchievementSchema = z.object({
 })
 
 // ============================================
+// LEADERBOARD SCHEMAS
+// ============================================
+
+export const leaderboardQuerySchema = z.object({
+  period: z.enum(['daily', 'weekly', 'monthly', 'all-time']).default('all-time'),
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(10),
+})
+
+// ============================================
 // TYPE EXPORTS
 // ============================================
 
@@ -101,3 +111,4 @@ export type LayerProgressInput = z.infer<typeof layerProgressSchema>
 export type CreateQuestInput = z.infer<typeof createQuestSchema>
 export type UpdateQuestInput = z.infer<typeof updateQuestSchema>
 export type UnlockAchievementInput = z.infer<typeof unlockAchievementSchema>
+export type LeaderboardQuery = z.infer<typeof leaderboardQuerySchema>
