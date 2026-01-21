@@ -109,16 +109,6 @@ export async function checkAndUnlockAchievements(params: CheckAchievementsParams
             },
           })
 
-          // Increment user XP
-          await prisma.user.update({
-            where: { id: userId },
-            data: {
-              xp: {
-                increment: achievement.xpReward,
-              },
-            },
-          })
-
           unlockedAchievements.push(achievement.id)
         } catch (error) {
           // Ignore duplicate key errors (race condition)

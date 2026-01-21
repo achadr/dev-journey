@@ -91,16 +91,6 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Update user XP
-    await prisma.user.update({
-      where: { id: session.userId },
-      data: {
-        xp: {
-          increment: achievement.xpReward,
-        },
-      },
-    })
-
     return successResponse({
       userAchievement,
       xpGained: achievement.xpReward,

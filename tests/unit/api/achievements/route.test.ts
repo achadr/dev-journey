@@ -13,9 +13,6 @@ vi.mock('@/lib/db/client', () => ({
       findUnique: vi.fn(),
       create: vi.fn(),
     },
-    user: {
-      update: vi.fn(),
-    },
   },
 }))
 
@@ -178,17 +175,6 @@ describe('POST /api/achievements/unlock', () => {
     vi.mocked(prisma.achievement.findUnique).mockResolvedValue(mockAchievements[0])
     vi.mocked(prisma.userAchievement.findUnique).mockResolvedValue(null)
     vi.mocked(prisma.userAchievement.create).mockResolvedValue(mockUserAchievement)
-    vi.mocked(prisma.user.update).mockResolvedValue({
-      id: 'user-123',
-      email: 'test@example.com',
-      username: 'testuser',
-      password: 'hashed',
-      role: 'PLAYER',
-      xp: 100,
-      level: 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
 
     const request = new NextRequest('http://localhost:3000/api/achievements/unlock', {
       method: 'POST',
@@ -270,41 +256,6 @@ describe('POST /api/achievements/unlock', () => {
     expect(data.success).toBe(false)
     expect(data.error.code).toBe('CONFLICT')
     expect(data.error.message).toContain('already unlocked')
-  })
-
-  it('increments user XP when unlocking achievement', async () => {
-    vi.mocked(getSession).mockResolvedValue(mockSession)
-    vi.mocked(prisma.achievement.findUnique).mockResolvedValue(mockAchievements[0])
-    vi.mocked(prisma.userAchievement.findUnique).mockResolvedValue(null)
-    vi.mocked(prisma.userAchievement.create).mockResolvedValue(mockUserAchievement)
-    vi.mocked(prisma.user.update).mockResolvedValue({
-      id: 'user-123',
-      email: 'test@example.com',
-      username: 'testuser',
-      password: 'hashed',
-      role: 'PLAYER',
-      xp: 100,
-      level: 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-
-    const request = new NextRequest('http://localhost:3000/api/achievements/unlock', {
-      method: 'POST',
-      body: JSON.stringify({ achievementId: 'achievement-1' }),
-    })
-
-    const response = await unlockAchievement(request)
-
-    expect(response.status).toBe(200)
-    expect(prisma.user.update).toHaveBeenCalledWith({
-      where: { id: mockSession.userId },
-      data: {
-        xp: {
-          increment: 100,
-        },
-      },
-    })
   })
 
   it('handles database errors gracefully', async () => {

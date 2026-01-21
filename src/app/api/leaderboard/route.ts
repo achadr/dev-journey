@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     const validation = validateQuery(request, leaderboardQuerySchema)
     if ('error' in validation) return validation.error
 
-    const { period, page, limit } = validation.data
+    const { period = 'all-time', page = 1, limit = 10 } = validation.data
     const prismaPeriod = mapPeriodToEnum(period)
     const periodStart = getPeriodStart(prismaPeriod)
 
